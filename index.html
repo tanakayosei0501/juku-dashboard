@@ -405,10 +405,16 @@
   const CONFIG_KEY = 'juku_dashboard_config';
   let _supabase = null;
 
+  // Default config (same Supabase project as juku-attendance)
+  const DEFAULT_URL = 'https://xgisflbaomyplxoiwhda.supabase.co';
+  const DEFAULT_KEY = 'sb_publishable_-VyLSUzuHwOQ4mvt0_Z4_g_efv-PMAu';
+
   function loadConfig() {
     try {
-      return JSON.parse(localStorage.getItem(CONFIG_KEY));
-    } catch { return null; }
+      const stored = JSON.parse(localStorage.getItem(CONFIG_KEY));
+      if (stored) return stored;
+    } catch {}
+    return { url: DEFAULT_URL, key: DEFAULT_KEY };
   }
 
   function saveConfig() {
@@ -583,11 +589,7 @@
   // ── Init ──────────────────────────────────────────────────────────
   async function initApp() {
     const cfg = loadConfig();
-    if (!cfg) {
-      document.getElementById('setupScreen').style.display = 'block';
-      return;
-    }
-
+    // cfg always has defaults, so setup screen is only shown if user explicitly clears it
     document.getElementById('setupScreen').style.display = 'none';
     document.getElementById('metricsSection').style.display = 'block';
     document.getElementById('linkSection').style.display = 'block';
