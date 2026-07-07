@@ -345,6 +345,53 @@
     .modal-msg.error { color: var(--danger); }
     .modal-msg.ok { color: var(--success); }
 
+    /* Login screen */
+    .login-screen {
+      position: fixed;
+      inset: 0;
+      background: var(--gray-50);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      z-index: 300;
+      transition: opacity .3s;
+    }
+    .login-screen.fade-out { opacity: 0; pointer-events: none; }
+
+    .login-card {
+      background: var(--white);
+      border-radius: 16px;
+      box-shadow: var(--shadow-md);
+      padding: 40px 32px 32px;
+      width: 100%;
+      max-width: 360px;
+      text-align: center;
+    }
+    .login-icon { font-size: 2.4rem; margin-bottom: 12px; }
+    .login-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 4px; }
+    .login-subtitle { font-size: 0.78rem; color: var(--gray-400); margin-bottom: 28px; }
+    .login-card input[type="password"] {
+      width: 100%;
+      border: 1px solid var(--gray-200);
+      border-radius: 10px;
+      padding: 12px 16px;
+      font-size: 1rem;
+      text-align: center;
+      letter-spacing: .15em;
+      outline: none;
+      margin-bottom: 12px;
+      font-family: inherit;
+    }
+    .login-card input[type="password"]:focus { border-color: var(--primary); }
+    .login-card .btn { width: 100%; padding: 12px; font-size: 0.95rem; }
+    .login-error {
+      font-size: 0.8rem;
+      color: var(--danger);
+      min-height: 20px;
+      margin-top: 8px;
+    }
+
     /* Update toast */
     .update-toast {
       position: fixed;
@@ -374,12 +421,24 @@
 </head>
 <body>
 
-<header>
+<!-- Login screen -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-card">
+    <div class="login-icon">📊</div>
+    <div class="login-title">鶴瀬東専用ダッシュボード</div>
+    <div class="login-subtitle">学校運営管理ポータル</div>
+    <input type="password" id="loginInput" placeholder="パスワードを入力" autocomplete="current-password" />
+    <button class="btn btn-primary" onclick="submitLogin()">ログイン</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+
+<header style="display:none" id="appHeader">
   <h1>鶴瀬東専用ダッシュボード</h1>
   <div class="subtitle">学校運営管理ポータル</div>
 </header>
 
-<div class="main">
+<div class="main" style="display:none" id="appMain">
 
   <!-- Alert -->
   <div class="alert-banner hidden" id="alertBanner">
@@ -395,19 +454,19 @@
         <div class="metric-label">現在の生徒数</div>
         <div class="metric-value" id="val-current_students"><div class="skeleton"></div></div>
         <div class="metric-updated" id="upd-current_students"></div>
-        <button class="edit-btn" onclick="withAuth(() => openMetricModal('current_students'))">編集</button>
+        <button class="edit-btn" onclick="openMetricModal('current_students')">編集</button>
       </div>
       <div class="metric-card">
         <div class="metric-label">退塾数</div>
         <div class="metric-value" id="val-dropouts"><div class="skeleton"></div></div>
         <div class="metric-updated" id="upd-dropouts"></div>
-        <button class="edit-btn" onclick="withAuth(() => openMetricModal('dropouts'))">編集</button>
+        <button class="edit-btn" onclick="openMetricModal('dropouts')">編集</button>
       </div>
       <div class="metric-card">
         <div class="metric-label">生徒数目標</div>
         <div class="metric-value" id="val-target"><div class="skeleton"></div></div>
         <div class="metric-updated" id="upd-target"></div>
-        <button class="edit-btn" onclick="withAuth(() => openMetricModal('target'))">編集</button>
+        <button class="edit-btn" onclick="openMetricModal('target')">編集</button>
       </div>
     </div>
   </section>
@@ -418,7 +477,7 @@
     <div class="card-section">
       <div class="card-section-header">
         <span class="card-section-title">📢 お知らせ一覧</span>
-        <button class="btn btn-primary btn-sm" onclick="withAuth(() => openAnnModal(null))">＋ 投稿</button>
+        <button class="btn btn-primary btn-sm" onclick="openAnnModal(null)">＋ 投稿</button>
       </div>
       <div class="category-tabs">
         <button class="cat-tab active" onclick="setAnnCat('all', this)">全て</button>
@@ -474,7 +533,7 @@
         </div>
         <textarea class="memo-textarea" id="memoTextarea" placeholder="朝礼・終礼の内容を記録..."></textarea>
         <div class="memo-save-row">
-          <button class="btn btn-primary btn-sm" id="memoSaveBtn" onclick="withAuth(saveMemo)">保存する</button>
+          <button class="btn btn-primary btn-sm" id="memoSaveBtn" onclick="saveMemo()">保存する</button>
         </div>
 
         <hr class="memo-divider" />
@@ -517,20 +576,6 @@
   </div>
 </div>
 
-<!-- Modal: Password -->
-<div class="modal-overlay" id="pwModalOverlay">
-  <div class="modal" style="max-width:340px">
-    <h2>🔒 編集パスワードを入力</h2>
-    <label>パスワード</label>
-    <input type="password" id="pwInput" autocomplete="current-password" />
-    <div class="modal-msg error" id="pwMsg"></div>
-    <div class="modal-actions">
-      <button class="btn btn-secondary" onclick="closePwModal()">キャンセル</button>
-      <button class="btn btn-primary" onclick="submitPw()">確認</button>
-    </div>
-  </div>
-</div>
-
 <!-- Modal: Announcement -->
 <div class="modal-overlay" id="annModalOverlay">
   <div class="modal">
@@ -567,9 +612,8 @@ function initSupabase() {
   }
 }
 
-// ── Password ───────────────────────────────────────────────────────
+// ── Password / Login ───────────────────────────────────────────────
 const PW_HASH = '__PASSWORD_HASH__';
-let _pendingCb = null;
 
 function isAuthed() { return sessionStorage.getItem('dashboard_authed') === '1'; }
 
@@ -578,35 +622,29 @@ async function sha256hex(str) {
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
 }
 
-function withAuth(cb) {
-  if (isAuthed()) { cb(); return; }
-  _pendingCb = cb;
-  document.getElementById('pwInput').value = '';
-  document.getElementById('pwMsg').textContent = '';
-  document.getElementById('pwModalOverlay').classList.add('open');
-  setTimeout(() => document.getElementById('pwInput').focus(), 50);
+function showApp() {
+  const screen = document.getElementById('loginScreen');
+  screen.classList.add('fade-out');
+  setTimeout(() => { screen.style.display = 'none'; }, 300);
+  document.getElementById('appHeader').style.display = '';
+  document.getElementById('appMain').style.display = '';
 }
 
-async function submitPw() {
-  const hash = await sha256hex(document.getElementById('pwInput').value);
+async function submitLogin() {
+  const input = document.getElementById('loginInput').value;
+  const hash = await sha256hex(input);
   if (hash === PW_HASH) {
     sessionStorage.setItem('dashboard_authed', '1');
-    closePwModal();
-    if (_pendingCb) { _pendingCb(); _pendingCb = null; }
+    showApp();
+    loadApp();
   } else {
-    document.getElementById('pwMsg').textContent = 'パスワードが違います';
-    document.getElementById('pwInput').select();
+    document.getElementById('loginError').textContent = 'パスワードが違います';
+    document.getElementById('loginInput').select();
   }
 }
 
-function closePwModal() { document.getElementById('pwModalOverlay').classList.remove('open'); }
-
-document.getElementById('pwInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') submitPw();
-  if (e.key === 'Escape') closePwModal();
-});
-document.getElementById('pwModalOverlay').addEventListener('click', e => {
-  if (e.target === e.currentTarget) { _pendingCb = null; closePwModal(); }
+document.getElementById('loginInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') submitLogin();
 });
 
 // ── Metrics ────────────────────────────────────────────────────────
@@ -740,8 +778,8 @@ function renderAnnRows(rows) {
         <span class="cat-badge ${CAT_CLASS[row.category] || 'cat-badge-other'}">${escHtml(row.category)}</span>
         <span class="ann-date">${fmtDT(row.created_at)}</span>
         <div class="ann-actions">
-          <button class="icon-btn" onclick="withAuth(()=>openAnnModal('${row.id}'))" title="編集">✏️</button>
-          <button class="icon-btn danger" onclick="withAuth(()=>deleteAnn('${row.id}'))" title="削除">🗑️</button>
+          <button class="icon-btn" onclick="openAnnModal('${row.id}')" title="編集">✏️</button>
+          <button class="icon-btn danger" onclick="deleteAnn('${row.id}')" title="削除">🗑️</button>
         </div>
       </div>
       <div class="ann-content">${escHtml(row.content)}</div>`;
@@ -885,13 +923,22 @@ function escHtml(s) {
 }
 
 // ── Init ───────────────────────────────────────────────────────────
-async function init() {
+async function loadApp() {
   initSupabase();
   await Promise.all([loadMetrics(), loadAnn(true)]);
   const today = todayStr();
   _memoDate = today;
   document.getElementById('memoDatePicker').value = today;
   await loadMemo(today);
+}
+
+function init() {
+  if (isAuthed()) {
+    showApp();
+    loadApp();
+  } else {
+    setTimeout(() => document.getElementById('loginInput').focus(), 50);
+  }
 }
 
 init();
