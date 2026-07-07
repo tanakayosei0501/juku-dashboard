@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>鶴瀬東専用ダッシュボード</title>
+  <link rel="manifest" href="manifest.json" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary: #4f46e5;
+      --primary-light: #e0e7ff;
+      --danger: #dc2626;
+      --danger-light: #fee2e2;
+      --success: #16a34a;
+      --warning: #d97706;
+      --warning-light: #fef3c7;
+      --gray-50: #f9fafb;
+      --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb;
+      --gray-400: #9ca3af;
+      --gray-600: #4b5563;
+      --gray-800: #1f2937;
+      --white: #ffffff;
+      --radius: 12px;
+      --shadow: 0 1px 3px rgba(0,0,0,.1), 0 1px 2px rgba(0,0,0,.06);
+      --shadow-md: 0 4px 6px rgba(0,0,0,.07), 0 2px 4px rgba(0,0,0,.06);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--gray-50);
+      color: var(--gray-800);
+      min-height: 100vh;
+    }
+
+    header {
+      background: var(--white);
+      border-bottom: 1px solid var(--gray-200);
+      padding: 16px 24px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    header h1 { font-size: 1.05rem; font-weight: 700; }
+    header .subtitle { font-size: 0.72rem; color: var(--gray-400); margin-top: 2px; }
+
+    .main {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 24px 16px 64px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .alert-banner {
+      background: var(--danger-light);
+      border: 1px solid #fca5a5;
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 0.875rem;
+      color: var(--danger);
+    }
+    .alert-banner.hidden { display: none; }
+    .alert-icon { flex-shrink: 0; margin-top: 1px; }
+
+    .section-title {
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--gray-400);
+      margin-bottom: 12px;
+    }
+
+    /* Metrics */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+    @media (max-width: 500px) { .metrics-grid { grid-template-columns: 1fr; } }
+
+    .metric-card {
+      background: var(--white);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 20px 16px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      position: relative;
+    }
+    .metric-label { font-size: 0.75rem; color: var(--gray-600); font-weight: 500; }
+    .metric-value { font-size: 2.2rem; font-weight: 700; line-height: 1; }
+    .metric-unit { font-size: 1rem; font-weight: 400; color: var(--gray-400); }
+    .metric-updated { font-size: 0.7rem; color: var(--gray-400); margin-top: 4px; }
+
+    .skeleton {
+      background: linear-gradient(90deg, var(--gray-100) 25%, var(--gray-200) 50%, var(--gray-100) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.2s infinite;
+      border-radius: 6px; height: 2.4rem; width: 70%;
+    }
+    @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+    /* Card sections */
+    .card-section {
+      background: var(--white);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .card-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 18px 12px;
+      border-bottom: 1px solid var(--gray-100);
+    }
+    .card-section-title { font-size: 0.95rem; font-weight: 700; }
+
+    /* Category tabs */
+    .category-tabs {
+      display: flex;
+      gap: 6px;
+      padding: 12px 18px 0;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .category-tabs::-webkit-scrollbar { display: none; }
+    .cat-tab {
+      flex-shrink: 0;
+      padding: 5px 12px;
+      border-radius: 20px;
+      border: 1px solid var(--gray-200);
+      font-size: 0.78rem;
+      font-weight: 500;
+      cursor: pointer;
+      background: var(--white);
+      color: var(--gray-600);
+      transition: all .15s;
+    }
+    .cat-tab.active { background: var(--primary); border-color: var(--primary); color: var(--white); }
+
+    /* Search row */
+    .search-row {
+      padding: 10px 18px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .search-input-wrap { position: relative; flex: 1; }
+    .search-icon {
+      position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+      color: var(--gray-400); font-size: 0.85rem; pointer-events: none;
+    }
+    .search-input {
+      width: 100%;
+      padding: 8px 10px 8px 30px;
+      border: 1px solid var(--gray-200);
+      border-radius: 8px;
+      font-size: 0.85rem;
+      outline: none;
+    }
+    .search-input:focus { border-color: var(--primary); }
+
+    /* Announcement list */
+    .ann-list { padding: 0 18px 4px; }
+    .ann-card {
+      border-bottom: 1px solid var(--gray-100);
+      padding: 14px 0;
+    }
+    .ann-card:last-child { border-bottom: none; }
+    .ann-card-top {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .cat-badge {
+      font-size: 0.68rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 20px;
+      flex-shrink: 0;
+    }
+    .cat-badge-jimu  { background: var(--primary-light); color: var(--primary); }
+    .cat-badge-seito { background: #dcfce7; color: #16a34a; }
+    .cat-badge-hogo  { background: var(--warning-light); color: var(--warning); }
+    .cat-badge-other { background: var(--gray-100); color: var(--gray-600); }
+
+    .ann-date { font-size: 0.72rem; color: var(--gray-400); }
+    .ann-actions { margin-left: auto; display: flex; gap: 6px; }
+    .icon-btn {
+      background: none; border: none; cursor: pointer;
+      color: var(--gray-400); font-size: 0.8rem;
+      padding: 2px 6px; border-radius: 4px;
+      transition: background .1s, color .1s;
+    }
+    .icon-btn:hover { background: var(--gray-100); color: var(--gray-800); }
+    .icon-btn.danger:hover { background: var(--danger-light); color: var(--danger); }
+
+    .ann-content { font-size: 0.875rem; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+
+    .load-more-wrap { padding: 12px 18px; text-align: center; }
+    .load-more-btn {
+      background: var(--gray-100); border: none; border-radius: 8px;
+      padding: 8px 24px; font-size: 0.82rem; color: var(--gray-600);
+      cursor: pointer; transition: background .15s;
+    }
+    .load-more-btn:hover { background: var(--gray-200); }
+    .empty-msg { padding: 24px 18px; text-align: center; color: var(--gray-400); font-size: 0.85rem; }
+
+    /* Memo */
+    .memo-body { padding: 16px 18px; }
+    .date-row { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; }
+    .date-row label { font-size: 0.8rem; color: var(--gray-600); flex-shrink: 0; }
+    .date-row input[type="date"] {
+      border: 1px solid var(--gray-200); border-radius: 8px;
+      padding: 7px 10px; font-size: 0.875rem; outline: none; flex: 1; min-width: 0;
+    }
+    .date-row input[type="date"]:focus { border-color: var(--primary); }
+    .today-btn {
+      flex-shrink: 0; background: var(--gray-100); border: none;
+      border-radius: 8px; padding: 7px 12px; font-size: 0.8rem;
+      color: var(--gray-600); cursor: pointer;
+    }
+    .today-btn:hover { background: var(--gray-200); }
+    .memo-textarea {
+      width: 100%; border: 1px solid var(--gray-200); border-radius: 8px;
+      padding: 12px; font-size: 0.875rem; line-height: 1.7;
+      resize: vertical; min-height: 160px; font-family: inherit; outline: none;
+    }
+    .memo-textarea:focus { border-color: var(--primary); }
+    .memo-save-row { display: flex; justify-content: flex-end; margin-top: 10px; }
+
+    .memo-divider { border: none; border-top: 1px dashed var(--gray-200); margin: 18px 0 14px; }
+    .memo-search-title { font-size: 0.78rem; color: var(--gray-400); font-weight: 600; margin-bottom: 10px; }
+    .date-range-row {
+      display: flex; gap: 8px; align-items: center;
+      flex-wrap: wrap; margin-bottom: 8px;
+    }
+    .date-range-row input[type="date"] {
+      border: 1px solid var(--gray-200); border-radius: 8px;
+      padding: 7px 10px; font-size: 0.8rem; outline: none;
+      flex: 1; min-width: 120px;
+    }
+    .date-range-row input[type="date"]:focus { border-color: var(--primary); }
+    .range-sep { font-size: 0.8rem; color: var(--gray-400); flex-shrink: 0; }
+
+    .memo-results { margin-top: 4px; }
+    .memo-result-item {
+      border-bottom: 1px solid var(--gray-100);
+      padding: 10px 0; cursor: pointer;
+      display: flex; gap: 12px; align-items: flex-start;
+    }
+    .memo-result-item:last-child { border-bottom: none; }
+    .memo-result-item:hover .memo-result-date { color: var(--primary); }
+    .memo-result-date { font-size: 0.82rem; font-weight: 600; color: var(--gray-600); flex-shrink: 0; min-width: 80px; }
+    .memo-result-preview {
+      font-size: 0.82rem; color: var(--gray-600); line-height: 1.5;
+      overflow: hidden; display: -webkit-box;
+      -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    }
+
+    /* Link cards */
+    .link-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 500px) { .link-cards { grid-template-columns: 1fr; } }
+    .link-card {
+      background: var(--white); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 20px 18px;
+      text-decoration: none; color: inherit;
+      display: flex; flex-direction: column; gap: 6px;
+      border: 2px solid transparent; transition: border-color .15s, box-shadow .15s;
+    }
+    .link-card:hover { border-color: var(--primary-light); box-shadow: var(--shadow-md); }
+    .link-card-icon { font-size: 1.6rem; }
+    .link-card-title { font-size: 0.95rem; font-weight: 700; }
+    .link-card-desc { font-size: 0.75rem; color: var(--gray-400); }
+    .link-card-arrow { font-size: 0.75rem; color: var(--primary); font-weight: 600; margin-top: 8px; }
+
+    /* Buttons */
+    .btn {
+      padding: 9px 18px; border-radius: 8px; border: none;
+      font-size: 0.875rem; font-weight: 600; cursor: pointer;
+      transition: opacity .15s; line-height: 1;
+    }
+    .btn:hover { opacity: .85; }
+    .btn-primary { background: var(--primary); color: var(--white); }
+    .btn-secondary { background: var(--gray-100); color: var(--gray-600); }
+    .btn-sm { padding: 6px 14px; font-size: 0.8rem; }
+
+    .edit-btn {
+      position: absolute; top: 12px; right: 12px;
+      background: var(--gray-100); border: none; border-radius: 6px;
+      padding: 4px 10px; font-size: 0.7rem; color: var(--gray-600); cursor: pointer;
+    }
+    .edit-btn:hover { background: var(--gray-200); }
+
+    /* Modals */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.45); z-index: 100;
+      align-items: center; justify-content: center; padding: 16px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--white); border-radius: var(--radius);
+      box-shadow: var(--shadow-md); padding: 28px 24px;
+      width: 100%; max-width: 420px;
+    }
+    .modal h2 { font-size: 1rem; font-weight: 700; margin-bottom: 16px; }
+    .modal label { font-size: 0.8rem; color: var(--gray-600); display: block; margin-bottom: 6px; }
+    .modal input[type="number"],
+    .modal input[type="password"] {
+      width: 100%; border: 1px solid var(--gray-200); border-radius: 8px;
+      padding: 10px 14px; font-size: 0.95rem; color: var(--gray-800);
+      outline: none; font-family: inherit;
+    }
+    .modal input:focus { border-color: var(--primary); }
+    .modal select {
+      width: 100%; border: 1px solid var(--gray-200); border-radius: 8px;
+      padding: 10px 14px; font-size: 0.95rem; color: var(--gray-800);
+      background: var(--white); outline: none; margin-bottom: 12px;
+      cursor: pointer;
+    }
+    .modal textarea {
+      width: 100%; border: 1px solid var(--gray-200); border-radius: 8px;
+      padding: 10px 14px; font-size: 0.875rem; color: var(--gray-800);
+      outline: none; font-family: inherit; line-height: 1.6;
+      resize: vertical; min-height: 140px;
+    }
+    .modal textarea:focus { border-color: var(--primary); }
+    .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+    .modal-actions .btn { flex: 1; }
+    .modal-msg { font-size: 0.75rem; margin-top: 8px; min-height: 18px; text-align: center; }
+    .modal-msg.error { color: var(--danger); }
+    .modal-msg.ok { color: var(--success); }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>鶴瀬東専用ダッシュボード</h1>
+  <div class="subtitle">学校運営管理ポータル</div>
+</header>
+
+<div class="main">
+
+  <!-- Alert -->
+  <div class="alert-banner hidden" id="alertBanner">
+    <span class="alert-icon">⚠️</span>
+    <span>今週分のデータが未更新です。各指標を確認して更新してください。</span>
+  </div>
+
+  <!-- Metrics -->
+  <section>
+    <div class="section-title">生徒数指標</div>
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-label">現在の生徒数</div>
+        <div class="metric-value" id="val-current_students"><div class="skeleton"></div></div>
+        <div class="metric-updated" id="upd-current_students"></div>
+        <button class="edit-btn" onclick="withAuth(() => openMetricModal('current_students'))">編集</button>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">退塾数</div>
+        <div class="metric-value" id="val-dropouts"><div class="skeleton"></div></div>
+        <div class="metric-updated" id="upd-dropouts"></div>
+        <button class="edit-btn" onclick="withAuth(() => openMetricModal('dropouts'))">編集</button>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">生徒数目標</div>
+        <div class="metric-value" id="val-target"><div class="skeleton"></div></div>
+        <div class="metric-updated" id="upd-target"></div>
+        <button class="edit-btn" onclick="withAuth(() => openMetricModal('target'))">編集</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Announcements -->
+  <section>
+    <div class="section-title">お知らせ</div>
+    <div class="card-section">
+      <div class="card-section-header">
+        <span class="card-section-title">📢 お知らせ一覧</span>
+        <button class="btn btn-primary btn-sm" onclick="withAuth(() => openAnnModal(null))">＋ 投稿</button>
+      </div>
+      <div class="category-tabs">
+        <button class="cat-tab active" onclick="setAnnCat('all', this)">全て</button>
+        <button class="cat-tab" onclick="setAnnCat('事務連絡', this)">事務連絡</button>
+        <button class="cat-tab" onclick="setAnnCat('生徒対応', this)">生徒対応</button>
+        <button class="cat-tab" onclick="setAnnCat('保護者対応', this)">保護者対応</button>
+        <button class="cat-tab" onclick="setAnnCat('その他', this)">その他</button>
+      </div>
+      <div class="search-row">
+        <div class="search-input-wrap">
+          <span class="search-icon">🔍</span>
+          <input class="search-input" id="annSearch" type="text" placeholder="キーワードで絞り込み..." oninput="debounceAnnSearch()" />
+        </div>
+      </div>
+      <div class="ann-list" id="annList"></div>
+      <div class="load-more-wrap" id="annLoadMoreWrap" style="display:none">
+        <button class="load-more-btn" onclick="loadMoreAnn()">もっと見る</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Memos -->
+  <section>
+    <div class="section-title">朝礼・終礼メモ</div>
+    <div class="card-section">
+      <div class="card-section-header">
+        <span class="card-section-title">📝 日次メモ</span>
+      </div>
+      <div class="memo-body">
+        <div class="date-row">
+          <label>日付</label>
+          <input type="date" id="memoDatePicker" onchange="onMemoDayChange()" />
+          <button class="today-btn" onclick="setMemoToday()">今日</button>
+        </div>
+        <textarea class="memo-textarea" id="memoTextarea" placeholder="朝礼・終礼の内容を記録..."></textarea>
+        <div class="memo-save-row">
+          <button class="btn btn-primary btn-sm" id="memoSaveBtn" onclick="withAuth(saveMemo)">保存する</button>
+        </div>
+
+        <hr class="memo-divider" />
+        <div class="memo-search-title">🔍 過去のメモを検索</div>
+        <div class="date-range-row">
+          <input type="date" id="memoFrom" />
+          <span class="range-sep">〜</span>
+          <input type="date" id="memoTo" />
+        </div>
+        <div class="search-row" style="padding:0 0 8px;">
+          <div class="search-input-wrap">
+            <span class="search-icon">🔍</span>
+            <input class="search-input" id="memoKeyword" type="text" placeholder="キーワードで絞り込み..." />
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="searchMemos()">検索</button>
+        </div>
+        <div class="memo-results" id="memoResults"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Link Cards -->
+  <section>
+    <div class="section-title">アプリを開く</div>
+    <div class="link-cards">
+      <a class="link-card" href="https://juku-attendance-silk.vercel.app/" target="_blank" rel="noopener">
+        <div class="link-card-icon">📋</div>
+        <div class="link-card-title">出席確認アプリ</div>
+        <div class="link-card-desc">生徒の出席・宿題・補講を管理</div>
+        <div class="link-card-arrow">開く →</div>
+      </a>
+      <a class="link-card" href="https://juku-report-app.vercel.app" target="_blank" rel="noopener">
+        <div class="link-card-icon">📨</div>
+        <div class="link-card-title">保護者連絡管理アプリ</div>
+        <div class="link-card-desc">保護者へのレポート・連絡を管理</div>
+        <div class="link-card-arrow">開く →</div>
+      </a>
+    </div>
+  </section>
+
+</div><!-- .main -->
+
+<!-- Modal: Metric Edit -->
+<div class="modal-overlay" id="metricModalOverlay">
+  <div class="modal">
+    <h2 id="metricModalTitle">値を編集</h2>
+    <label>新しい値（人）</label>
+    <input type="number" id="metricInput" min="0" step="1" />
+    <div class="modal-msg" id="metricMsg"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeMetricModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveMetric()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Password -->
+<div class="modal-overlay" id="pwModalOverlay">
+  <div class="modal" style="max-width:340px">
+    <h2>🔒 編集パスワードを入力</h2>
+    <label>パスワード</label>
+    <input type="password" id="pwInput" autocomplete="current-password" />
+    <div class="modal-msg error" id="pwMsg"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closePwModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="submitPw()">確認</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Announcement -->
+<div class="modal-overlay" id="annModalOverlay">
+  <div class="modal">
+    <h2 id="annModalTitle">お知らせを投稿</h2>
+    <label>カテゴリ</label>
+    <select id="annCatSelect">
+      <option value="事務連絡">事務連絡</option>
+      <option value="生徒対応">生徒対応</option>
+      <option value="保護者対応">保護者対応</option>
+      <option value="その他">その他</option>
+    </select>
+    <label>内容</label>
+    <textarea id="annContent" placeholder="お知らせの内容を入力..."></textarea>
+    <div class="modal-msg" id="annMsg"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeAnnModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveAnn()">投稿する</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Supabase ───────────────────────────────────────────────────────
+const DEFAULT_URL = 'https://xgisflbaomyplxoiwhda.supabase.co';
+const DEFAULT_KEY = 'sb_publishable_-VyLSUzuHwOQ4mvt0_Z4_g_efv-PMAu';
+let _sb = null;
+
+function initSupabase() {
+  try {
+    const cfg = JSON.parse(localStorage.getItem('juku_dashboard_config'));
+    _sb = window.supabase.createClient(cfg.url, cfg.key);
+  } catch {
+    _sb = window.supabase.createClient(DEFAULT_URL, DEFAULT_KEY);
+  }
+}
+
+// ── Password ───────────────────────────────────────────────────────
+const PW_HASH = '__PASSWORD_HASH__';
+let _pendingCb = null;
+
+function isAuthed() { return sessionStorage.getItem('dashboard_authed') === '1'; }
+
+async function sha256hex(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+function withAuth(cb) {
+  if (isAuthed()) { cb(); return; }
+  _pendingCb = cb;
+  document.getElementById('pwInput').value = '';
+  document.getElementById('pwMsg').textContent = '';
+  document.getElementById('pwModalOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('pwInput').focus(), 50);
+}
+
+async function submitPw() {
+  const hash = await sha256hex(document.getElementById('pwInput').value);
+  if (hash === PW_HASH) {
+    sessionStorage.setItem('dashboard_authed', '1');
+    closePwModal();
+    if (_pendingCb) { _pendingCb(); _pendingCb = null; }
+  } else {
+    document.getElementById('pwMsg').textContent = 'パスワードが違います';
+    document.getElementById('pwInput').select();
+  }
+}
+
+function closePwModal() { document.getElementById('pwModalOverlay').classList.remove('open'); }
+
+document.getElementById('pwInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') submitPw();
+  if (e.key === 'Escape') closePwModal();
+});
+document.getElementById('pwModalOverlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) { _pendingCb = null; closePwModal(); }
+});
+
+// ── Metrics ────────────────────────────────────────────────────────
+const METRICS = [
+  { id: 'current_students', label: '現在の生徒数' },
+  { id: 'dropouts',         label: '退塾数'       },
+  { id: 'target',           label: '生徒数目標'   },
+];
+let _metricsData = {};
+let _editMetricId = null;
+
+async function loadMetrics() {
+  const { data } = await _sb.from('metrics').select('id,value,updated_at');
+  if (!data) return;
+  const existing = new Set(data.map(r => r.id));
+  const inserts = METRICS.filter(m => !existing.has(m.id)).map(m => ({ id: m.id, value: 0 }));
+  if (inserts.length) {
+    await _sb.from('metrics').insert(inserts);
+    const { data: r2 } = await _sb.from('metrics').select('id,value,updated_at');
+    if (r2) r2.forEach(r => { _metricsData[r.id] = r; });
+  } else {
+    data.forEach(r => { _metricsData[r.id] = r; });
+  }
+  renderMetrics();
+  checkAlert();
+}
+
+function renderMetrics() {
+  METRICS.forEach(({ id }) => {
+    const rec = _metricsData[id];
+    document.getElementById('val-' + id).innerHTML =
+      `${rec?.value ?? 0}<span class="metric-unit"> 人</span>`;
+    document.getElementById('upd-' + id).textContent =
+      rec?.updated_at ? '最終更新: ' + fmtDT(rec.updated_at) : '';
+  });
+}
+
+function openMetricModal(id) {
+  _editMetricId = id;
+  const m = METRICS.find(x => x.id === id);
+  document.getElementById('metricModalTitle').textContent = m.label + ' を編集';
+  document.getElementById('metricInput').value = _metricsData[id]?.value ?? 0;
+  document.getElementById('metricMsg').textContent = '';
+  document.getElementById('metricMsg').className = 'modal-msg';
+  document.getElementById('metricModalOverlay').classList.add('open');
+  setTimeout(() => { document.getElementById('metricInput').focus(); document.getElementById('metricInput').select(); }, 50);
+}
+
+function closeMetricModal() {
+  document.getElementById('metricModalOverlay').classList.remove('open');
+}
+
+async function saveMetric() {
+  const value = parseInt(document.getElementById('metricInput').value, 10);
+  const msgEl = document.getElementById('metricMsg');
+  if (isNaN(value) || value < 0) {
+    msgEl.textContent = '0以上の整数を入力してください'; msgEl.className = 'modal-msg error'; return;
+  }
+  msgEl.textContent = '保存中...'; msgEl.className = 'modal-msg';
+  const now = new Date().toISOString();
+  const { error } = await _sb.from('metrics').upsert({ id: _editMetricId, value, updated_at: now }, { onConflict: 'id' });
+  if (error) { msgEl.textContent = '保存失敗: ' + error.message; msgEl.className = 'modal-msg error'; return; }
+  _metricsData[_editMetricId] = { id: _editMetricId, value, updated_at: now };
+  renderMetrics(); checkAlert();
+  msgEl.textContent = '保存しました'; msgEl.className = 'modal-msg ok';
+  setTimeout(closeMetricModal, 700);
+}
+
+document.getElementById('metricInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') saveMetric();
+  if (e.key === 'Escape') closeMetricModal();
+});
+document.getElementById('metricModalOverlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeMetricModal();
+});
+
+// ── Alert ──────────────────────────────────────────────────────────
+function getLastTuesday() {
+  const d = new Date(); d.setHours(0,0,0,0);
+  const day = d.getDay();
+  const diff = day === 2 ? 0 : (day < 2 ? day + 5 : day - 2);
+  d.setDate(d.getDate() - diff);
+  return d;
+}
+
+function checkAlert() {
+  const lastTue = getLastTuesday();
+  const needs = METRICS.some(m => {
+    const rec = _metricsData[m.id];
+    return !rec?.updated_at || new Date(rec.updated_at) < lastTue;
+  });
+  document.getElementById('alertBanner').classList.toggle('hidden', !needs);
+}
+
+// ── Announcements ──────────────────────────────────────────────────
+const ANN_PAGE = 10;
+let _annOffset = 0, _annCat = 'all', _annKw = '', _annHasMore = false;
+let _annTimer = null, _editAnnId = null;
+
+const CAT_CLASS = { '事務連絡':'cat-badge-jimu','生徒対応':'cat-badge-seito','保護者対応':'cat-badge-hogo','その他':'cat-badge-other' };
+
+async function loadAnn(reset = false) {
+  if (reset) { _annOffset = 0; document.getElementById('annList').innerHTML = ''; }
+
+  let q = _sb.from('announcements').select('*', { count: 'exact' })
+    .order('created_at', { ascending: false });
+  if (_annCat !== 'all') q = q.eq('category', _annCat);
+  if (_annKw.trim()) q = q.ilike('content', `%${_annKw.trim()}%`);
+  q = q.range(_annOffset, _annOffset + ANN_PAGE - 1);
+
+  const { data, count } = await q;
+  const rows = data || [];
+
+  if (rows.length === 0 && _annOffset === 0) {
+    document.getElementById('annList').innerHTML = '<div class="empty-msg">お知らせはありません</div>';
+  } else {
+    renderAnnRows(rows);
+  }
+  _annOffset += rows.length;
+  _annHasMore = count > _annOffset;
+  document.getElementById('annLoadMoreWrap').style.display = _annHasMore ? 'block' : 'none';
+}
+
+function renderAnnRows(rows) {
+  const list = document.getElementById('annList');
+  rows.forEach(row => {
+    const div = document.createElement('div');
+    div.className = 'ann-card';
+    div.innerHTML = `
+      <div class="ann-card-top">
+        <span class="cat-badge ${CAT_CLASS[row.category] || 'cat-badge-other'}">${escHtml(row.category)}</span>
+        <span class="ann-date">${fmtDT(row.created_at)}</span>
+        <div class="ann-actions">
+          <button class="icon-btn" onclick="withAuth(()=>openAnnModal('${row.id}'))" title="編集">✏️</button>
+          <button class="icon-btn danger" onclick="withAuth(()=>deleteAnn('${row.id}'))" title="削除">🗑️</button>
+        </div>
+      </div>
+      <div class="ann-content">${escHtml(row.content)}</div>`;
+    list.appendChild(div);
+  });
+}
+
+function setAnnCat(cat, el) {
+  _annCat = cat;
+  document.querySelectorAll('.cat-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  loadAnn(true);
+}
+
+function debounceAnnSearch() {
+  clearTimeout(_annTimer);
+  _annTimer = setTimeout(() => { _annKw = document.getElementById('annSearch').value; loadAnn(true); }, 300);
+}
+
+function loadMoreAnn() { loadAnn(false); }
+
+function openAnnModal(id) {
+  _editAnnId = id;
+  document.getElementById('annModalTitle').textContent = id ? 'お知らせを編集' : 'お知らせを投稿';
+  document.getElementById('annMsg').textContent = '';
+  document.getElementById('annMsg').className = 'modal-msg';
+  if (id) {
+    _sb.from('announcements').select('*').eq('id', id).single().then(({ data }) => {
+      if (data) { document.getElementById('annCatSelect').value = data.category; document.getElementById('annContent').value = data.content; }
+    });
+  } else {
+    document.getElementById('annCatSelect').value = '事務連絡';
+    document.getElementById('annContent').value = '';
+  }
+  document.getElementById('annModalOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('annContent').focus(), 50);
+}
+
+function closeAnnModal() { document.getElementById('annModalOverlay').classList.remove('open'); _editAnnId = null; }
+
+async function saveAnn() {
+  const content = document.getElementById('annContent').value.trim();
+  const category = document.getElementById('annCatSelect').value;
+  const msgEl = document.getElementById('annMsg');
+  if (!content) { msgEl.textContent = '内容を入力してください'; msgEl.className = 'modal-msg error'; return; }
+  msgEl.textContent = '保存中...'; msgEl.className = 'modal-msg';
+  const now = new Date().toISOString();
+  const { error } = _editAnnId
+    ? await _sb.from('announcements').update({ content, category, updated_at: now }).eq('id', _editAnnId)
+    : await _sb.from('announcements').insert({ content, category, created_at: now, updated_at: now });
+  if (error) { msgEl.textContent = '保存失敗: ' + error.message; msgEl.className = 'modal-msg error'; return; }
+  closeAnnModal(); loadAnn(true);
+}
+
+async function deleteAnn(id) {
+  if (!confirm('このお知らせを削除しますか？')) return;
+  const { error } = await _sb.from('announcements').delete().eq('id', id);
+  if (error) { alert('削除失敗: ' + error.message); return; }
+  loadAnn(true);
+}
+
+document.getElementById('annModalOverlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeAnnModal(); });
+
+// ── Memos ──────────────────────────────────────────────────────────
+let _memoDate = todayStr();
+
+function todayStr() { return new Date().toISOString().slice(0, 10); }
+
+function setMemoToday() {
+  _memoDate = todayStr();
+  document.getElementById('memoDatePicker').value = _memoDate;
+  loadMemo(_memoDate);
+}
+
+async function onMemoDayChange() {
+  _memoDate = document.getElementById('memoDatePicker').value;
+  if (_memoDate) await loadMemo(_memoDate);
+}
+
+async function loadMemo(date) {
+  document.getElementById('memoTextarea').value = '';
+  const { data } = await _sb.from('memos').select('content').eq('memo_date', date).maybeSingle();
+  document.getElementById('memoTextarea').value = data?.content ?? '';
+}
+
+async function saveMemo() {
+  const content = document.getElementById('memoTextarea').value;
+  if (!_memoDate) { alert('日付を選択してください'); return; }
+  const now = new Date().toISOString();
+  const { error } = await _sb.from('memos').upsert(
+    { memo_date: _memoDate, content, updated_at: now },
+    { onConflict: 'memo_date' }
+  );
+  if (error) { alert('保存失敗: ' + error.message); return; }
+  const btn = document.getElementById('memoSaveBtn');
+  btn.textContent = '✓ 保存しました';
+  setTimeout(() => { btn.textContent = '保存する'; }, 1500);
+}
+
+async function searchMemos() {
+  const fromDate = document.getElementById('memoFrom').value;
+  const toDate   = document.getElementById('memoTo').value;
+  const kw       = document.getElementById('memoKeyword').value.trim();
+  const wrap     = document.getElementById('memoResults');
+
+  let q = _sb.from('memos').select('memo_date,content').order('memo_date', { ascending: false }).limit(50);
+  if (fromDate) q = q.gte('memo_date', fromDate);
+  if (toDate)   q = q.lte('memo_date', toDate);
+  if (kw)       q = q.ilike('content', `%${kw}%`);
+
+  const { data, error } = await q;
+  if (error) { alert('検索失敗: ' + error.message); return; }
+
+  if (!data || data.length === 0) {
+    wrap.innerHTML = '<div class="empty-msg" style="padding:12px 0">該当するメモが見つかりませんでした</div>';
+    return;
+  }
+  wrap.innerHTML = data.map(r => `
+    <div class="memo-result-item" onclick="jumpToMemo('${r.memo_date}')">
+      <div class="memo-result-date">${fmtDate(r.memo_date)}</div>
+      <div class="memo-result-preview">${escHtml(r.content)}</div>
+    </div>`).join('');
+}
+
+function jumpToMemo(date) {
+  _memoDate = date;
+  document.getElementById('memoDatePicker').value = date;
+  loadMemo(date);
+  document.getElementById('memoDatePicker').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// ── Utils ──────────────────────────────────────────────────────────
+function fmtDT(iso) {
+  const d = new Date(iso);
+  return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function fmtDate(s) { const [y,m,d]=s.split('-'); return `${y}/${m}/${d}`; }
+function pad(n) { return String(n).padStart(2,'0'); }
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Init ───────────────────────────────────────────────────────────
+async function init() {
+  initSupabase();
+  await Promise.all([loadMetrics(), loadAnn(true)]);
+  const today = todayStr();
+  _memoDate = today;
+  document.getElementById('memoDatePicker').value = today;
+  await loadMemo(today);
+}
+
+init();
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
