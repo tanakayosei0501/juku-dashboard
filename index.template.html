@@ -344,6 +344,32 @@
     .modal-msg { font-size: 0.75rem; margin-top: 8px; min-height: 18px; text-align: center; }
     .modal-msg.error { color: var(--danger); }
     .modal-msg.ok { color: var(--success); }
+
+    /* Update toast */
+    .update-toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--gray-800);
+      color: var(--white);
+      padding: 12px 20px;
+      border-radius: 10px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      z-index: 200;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(0,0,0,.35);
+      white-space: nowrap;
+      transition: transform .3s cubic-bezier(.34,1.56,.64,1), opacity .3s;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .update-toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+      pointer-events: auto;
+    }
   </style>
 </head>
 <body>
@@ -471,6 +497,11 @@
   </section>
 
 </div><!-- .main -->
+
+<!-- Update toast -->
+<div class="update-toast" id="updateToast" onclick="applyUpdate()">
+  🔄 新しいバージョンがあります。タップして更新
+</div>
 
 <!-- Modal: Metric Edit -->
 <div class="modal-overlay" id="metricModalOverlay">
@@ -865,8 +896,31 @@ async function init() {
 
 init();
 
+// ── Service Worker & update toast ──────────────────────────────────
+let _waitingSW = null;
+
+function applyUpdate() {
+  if (_waitingSW) _waitingSW.postMessage({ type: 'SKIP_WAITING' });
+}
+
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js').catch(() => {});
+  navigator.serviceWorker.register('/sw.js').then(reg => {
+    // New SW found while page is open
+    reg.addEventListener('updatefound', () => {
+      const sw = reg.installing;
+      sw.addEventListener('statechange', () => {
+        if (sw.state === 'installed' && navigator.serviceWorker.controller) {
+          _waitingSW = sw;
+          document.getElementById('updateToast').classList.add('show');
+        }
+      });
+    });
+  }).catch(() => {});
+
+  // When controller changes (after SKIP_WAITING), reload to get new version
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    window.location.reload();
+  });
 }
 </script>
 </body>

@@ -22,8 +22,24 @@ if (!password) {
   process.exit(1);
 }
 
-const hash = crypto.createHash('sha256').update(password).digest('hex');
-const template = fs.readFileSync('index.template.html', 'utf8');
-const output = template.replace("'__PASSWORD_HASH__'", `'${hash}'`);
-fs.writeFileSync('index.html', output);
+// Cache version: YYYYMMDD based on build date
+const now = new Date();
+const cacheVersion = [
+  now.getUTCFullYear(),
+  String(now.getUTCMonth() + 1).padStart(2, '0'),
+  String(now.getUTCDate()).padStart(2, '0'),
+].join('');
+
+const pwHash = crypto.createHash('sha256').update(password).digest('hex');
+
+// Build index.html
+const indexTpl = fs.readFileSync('index.template.html', 'utf8');
+const indexOut = indexTpl.replace("'__PASSWORD_HASH__'", `'${pwHash}'`);
+fs.writeFileSync('index.html', indexOut);
 console.log('✓ Built index.html');
+
+// Build sw.js
+const swTpl = fs.readFileSync('sw.template.js', 'utf8');
+const swOut = swTpl.replace('__CACHE_VERSION__', cacheVersion);
+fs.writeFileSync('sw.js', swOut);
+console.log(`✓ Built sw.js  (cache: juku-dashboard-${cacheVersion})`);
