@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>学校運営ダッシュボード</title>
+  <title>鶴瀬東専用ダッシュボード</title>
   <link rel="manifest" href="manifest.json" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
@@ -15,6 +15,7 @@
       --danger: #dc2626;
       --danger-light: #fee2e2;
       --success: #16a34a;
+      --warning: #d97706;
       --gray-50: #f9fafb;
       --gray-100: #f3f4f6;
       --gray-200: #e5e7eb;
@@ -46,17 +47,8 @@
       z-index: 10;
     }
 
-    header h1 {
-      font-size: 1.1rem;
-      font-weight: 700;
-      color: var(--gray-800);
-    }
-
-    header .subtitle {
-      font-size: 0.75rem;
-      color: var(--gray-400);
-      margin-top: 2px;
-    }
+    header h1 { font-size: 1.1rem; font-weight: 700; color: var(--gray-800); }
+    header .subtitle { font-size: 0.75rem; color: var(--gray-400); margin-top: 2px; }
 
     .main {
       max-width: 800px;
@@ -69,7 +61,6 @@
 
     /* Alert Banner */
     .alert-banner {
-      display: none;
       background: var(--danger-light);
       border: 1px solid #fca5a5;
       border-radius: var(--radius);
@@ -81,19 +72,22 @@
       color: var(--danger);
       line-height: 1.5;
     }
-
     .alert-banner.hidden { display: none; }
-
     .alert-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 1px; }
 
-    /* Section titles */
+    /* Section */
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
     .section-title {
       font-size: 0.75rem;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: .05em;
       color: var(--gray-400);
-      margin-bottom: 12px;
     }
 
     /* Metrics grid */
@@ -102,10 +96,7 @@
       grid-template-columns: repeat(3, 1fr);
       gap: 12px;
     }
-
-    @media (max-width: 500px) {
-      .metrics-grid { grid-template-columns: 1fr; }
-    }
+    @media (max-width: 500px) { .metrics-grid { grid-template-columns: 1fr; } }
 
     .metric-card {
       background: var(--white);
@@ -117,31 +108,10 @@
       gap: 8px;
       position: relative;
     }
-
-    .metric-label {
-      font-size: 0.75rem;
-      color: var(--gray-600);
-      font-weight: 500;
-    }
-
-    .metric-value {
-      font-size: 2.2rem;
-      font-weight: 700;
-      color: var(--gray-800);
-      line-height: 1;
-    }
-
-    .metric-unit {
-      font-size: 1rem;
-      font-weight: 400;
-      color: var(--gray-400);
-    }
-
-    .metric-updated {
-      font-size: 0.7rem;
-      color: var(--gray-400);
-      margin-top: 4px;
-    }
+    .metric-label { font-size: 0.75rem; color: var(--gray-600); font-weight: 500; }
+    .metric-value { font-size: 2.2rem; font-weight: 700; color: var(--gray-800); line-height: 1; }
+    .metric-unit { font-size: 1rem; font-weight: 400; color: var(--gray-400); }
+    .metric-updated { font-size: 0.7rem; color: var(--gray-400); margin-top: 4px; }
 
     .edit-btn {
       position: absolute;
@@ -158,7 +128,7 @@
     }
     .edit-btn:hover { background: var(--gray-200); }
 
-    /* Edit modal */
+    /* Modal */
     .modal-overlay {
       display: none;
       position: fixed;
@@ -177,32 +147,38 @@
       box-shadow: var(--shadow-md);
       padding: 28px 24px;
       width: 100%;
-      max-width: 340px;
+      max-width: 400px;
     }
-
     .modal h2 { font-size: 1rem; font-weight: 700; margin-bottom: 16px; }
+    .modal label { font-size: 0.8rem; color: var(--gray-600); display: block; margin-bottom: 6px; margin-top: 12px; }
+    .modal label:first-of-type { margin-top: 0; }
 
-    .modal label { font-size: 0.8rem; color: var(--gray-600); display: block; margin-bottom: 6px; }
-
-    .modal input[type="number"] {
+    .modal input[type="number"],
+    .modal input[type="password"],
+    .modal input[type="text"],
+    .modal select,
+    .modal textarea {
       width: 100%;
       border: 1px solid var(--gray-200);
       border-radius: 8px;
       padding: 10px 14px;
-      font-size: 1.2rem;
-      font-weight: 600;
+      font-size: 0.9rem;
       color: var(--gray-800);
       outline: none;
       transition: border-color .15s;
+      font-family: inherit;
     }
-    .modal input[type="number"]:focus { border-color: var(--primary); }
+    .modal input[type="number"] { font-size: 1.2rem; font-weight: 600; }
+    .modal input:focus,
+    .modal select:focus,
+    .modal textarea:focus { border-color: var(--primary); }
+    .modal textarea { resize: vertical; min-height: 100px; }
 
     .modal-actions {
       display: flex;
       gap: 10px;
       margin-top: 20px;
     }
-
     .btn {
       flex: 1;
       padding: 10px;
@@ -216,6 +192,7 @@
     .btn:hover { opacity: .85; }
     .btn-primary { background: var(--primary); color: var(--white); }
     .btn-secondary { background: var(--gray-100); color: var(--gray-600); }
+    .btn-danger { background: var(--danger); color: var(--white); }
 
     .saving-msg {
       font-size: 0.75rem;
@@ -224,6 +201,7 @@
       text-align: center;
       min-height: 18px;
     }
+    .saving-msg.error { color: var(--danger); }
 
     /* App link cards */
     .link-cards {
@@ -231,10 +209,7 @@
       grid-template-columns: 1fr 1fr;
       gap: 12px;
     }
-
-    @media (max-width: 500px) {
-      .link-cards { grid-template-columns: 1fr; }
-    }
+    @media (max-width: 500px) { .link-cards { grid-template-columns: 1fr; } }
 
     .link-card {
       background: var(--white);
@@ -249,23 +224,13 @@
       border: 2px solid transparent;
       transition: border-color .15s, box-shadow .15s;
     }
-    .link-card:hover {
-      border-color: var(--primary-light);
-      box-shadow: var(--shadow-md);
-    }
-
+    .link-card:hover { border-color: var(--primary-light); box-shadow: var(--shadow-md); }
     .link-card-icon { font-size: 1.6rem; }
     .link-card-title { font-size: 0.95rem; font-weight: 700; color: var(--gray-800); }
     .link-card-desc { font-size: 0.75rem; color: var(--gray-400); }
+    .link-card-arrow { font-size: 0.75rem; color: var(--primary); font-weight: 600; margin-top: 8px; }
 
-    .link-card-arrow {
-      font-size: 0.75rem;
-      color: var(--primary);
-      font-weight: 600;
-      margin-top: 8px;
-    }
-
-    /* Loading skeleton */
+    /* Skeleton */
     .skeleton {
       background: linear-gradient(90deg, var(--gray-100) 25%, var(--gray-200) 50%, var(--gray-100) 75%);
       background-size: 200% 100%;
@@ -274,7 +239,6 @@
       height: 2.4rem;
       width: 70%;
     }
-
     @keyframes shimmer {
       0% { background-position: 200% 0; }
       100% { background-position: -200% 0; }
@@ -288,7 +252,7 @@
       font-size: 0.8rem;
     }
 
-    /* Config setup screen */
+    /* Setup screen */
     .setup-screen {
       background: var(--white);
       border-radius: var(--radius);
@@ -308,13 +272,246 @@
     }
     .setup-screen input:focus { border-color: var(--primary); }
     .setup-screen label { font-size: 0.78rem; color: var(--gray-600); display: block; margin-bottom: 4px; }
+
+    /* ── Announcements ─────────────────────────────────────── */
+    .section-card {
+      background: var(--white);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 20px 18px;
+    }
+
+    .search-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .search-input {
+      flex: 1;
+      min-width: 160px;
+      border: 1px solid var(--gray-200);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 0.85rem;
+      outline: none;
+      transition: border-color .15s;
+    }
+    .search-input:focus { border-color: var(--primary); }
+
+    .tabs {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .tab {
+      padding: 5px 12px;
+      border-radius: 20px;
+      border: 1px solid var(--gray-200);
+      background: var(--white);
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: var(--gray-600);
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .tab.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: var(--white);
+    }
+    .tab:hover:not(.active) { background: var(--gray-100); }
+
+    .ann-item {
+      padding: 12px 0;
+      border-bottom: 1px solid var(--gray-100);
+    }
+    .ann-item:last-child { border-bottom: none; }
+
+    .ann-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .ann-date { font-size: 0.72rem; color: var(--gray-400); }
+    .ann-content { font-size: 0.875rem; color: var(--gray-800); line-height: 1.6; white-space: pre-wrap; }
+
+    .cat-badge {
+      font-size: 0.68rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 10px;
+      white-space: nowrap;
+    }
+    .cat-事務連絡 { background: #e0e7ff; color: #4338ca; }
+    .cat-生徒対応  { background: #d1fae5; color: #065f46; }
+    .cat-保護者対応 { background: #fef3c7; color: #92400e; }
+    .cat-その他    { background: var(--gray-100); color: var(--gray-600); }
+
+    .ann-delete-btn {
+      margin-left: auto;
+      background: none;
+      border: none;
+      color: var(--gray-400);
+      cursor: pointer;
+      font-size: 0.9rem;
+      padding: 2px 4px;
+      border-radius: 4px;
+      transition: color .15s, background .15s;
+      flex-shrink: 0;
+    }
+    .ann-delete-btn:hover { color: var(--danger); background: var(--danger-light); }
+
+    .empty-msg {
+      text-align: center;
+      color: var(--gray-400);
+      font-size: 0.85rem;
+      padding: 24px 0;
+    }
+
+    .load-more-btn {
+      width: 100%;
+      margin-top: 12px;
+      padding: 8px;
+      background: var(--gray-100);
+      border: none;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      color: var(--gray-600);
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .load-more-btn:hover { background: var(--gray-200); }
+
+    .add-btn {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 14px;
+      background: var(--primary-light);
+      border: none;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--primary);
+      cursor: pointer;
+      transition: background .15s;
+      white-space: nowrap;
+    }
+    .add-btn:hover { background: #c7d2fe; }
+
+    /* ── Memo ──────────────────────────────────────────────── */
+    .memo-edit-area {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .memo-date-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .memo-date-input {
+      border: 1px solid var(--gray-200);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color .15s;
+    }
+    .memo-date-input:focus { border-color: var(--primary); }
+
+    .memo-textarea {
+      width: 100%;
+      border: 1px solid var(--gray-200);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 0.875rem;
+      min-height: 120px;
+      resize: vertical;
+      outline: none;
+      transition: border-color .15s;
+      font-family: inherit;
+      line-height: 1.7;
+    }
+    .memo-textarea:focus { border-color: var(--primary); }
+
+    .memo-save-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .memo-save-btn {
+      padding: 8px 20px;
+      background: var(--primary);
+      color: var(--white);
+      border: none;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+    .memo-save-btn:hover { opacity: .85; }
+    .memo-save-msg { font-size: 0.75rem; color: var(--success); }
+
+    .memo-divider {
+      border: none;
+      border-top: 1px solid var(--gray-200);
+      margin: 16px 0;
+    }
+
+    .memo-filter-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .memo-range-select {
+      border: 1px solid var(--gray-200);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 0.85rem;
+      outline: none;
+      background: var(--white);
+    }
+
+    .memo-past-title {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--gray-400);
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      margin-bottom: 8px;
+    }
+
+    .past-memos-list { max-height: 280px; overflow-y: auto; }
+
+    .memo-past-item {
+      padding: 10px 8px;
+      border-bottom: 1px solid var(--gray-100);
+      cursor: pointer;
+      border-radius: 6px;
+      transition: background .1s;
+    }
+    .memo-past-item:last-child { border-bottom: none; }
+    .memo-past-item:hover { background: var(--gray-50); }
+    .memo-past-date { font-size: 0.75rem; font-weight: 600; color: var(--primary); margin-bottom: 3px; }
+    .memo-past-preview { font-size: 0.8rem; color: var(--gray-600); line-height: 1.5; }
+
+    /* ── Password modal hint ───────────────────────────────── */
+    .pw-hint { font-size: 0.8rem; color: var(--gray-600); margin-bottom: 14px; line-height: 1.5; }
   </style>
 </head>
 <body>
 
 <header>
   <div>
-    <h1>学校運営ダッシュボード</h1>
+    <h1>鶴瀬東専用ダッシュボード</h1>
     <div class="subtitle">塾管理ポータル</div>
   </div>
 </header>
@@ -326,7 +523,7 @@
     <span id="alertMsg">今週分のデータが未更新です。各指標を確認して更新してください。</span>
   </div>
 
-  <!-- Setup screen (shown if no Supabase config) -->
+  <!-- Setup screen -->
   <div class="setup-screen" id="setupScreen" style="display:none">
     <h2>Supabase 設定</h2>
     <p>
@@ -343,32 +540,89 @@
 
   <!-- Metrics section -->
   <section id="metricsSection" style="display:none">
-    <div class="section-title">生徒数指標</div>
+    <div class="section-title" style="margin-bottom:12px">生徒数指標</div>
     <div class="metrics-grid">
       <div class="metric-card" id="card-current_students">
         <div class="metric-label">現在の生徒数</div>
         <div class="metric-value" id="val-current_students"><div class="skeleton"></div></div>
         <div class="metric-updated" id="upd-current_students"></div>
-        <button class="edit-btn" onclick="openModal('current_students')">編集</button>
+        <button class="edit-btn" onclick="openModalWithAuth('current_students')">編集</button>
       </div>
       <div class="metric-card" id="card-dropouts">
         <div class="metric-label">退塾数</div>
         <div class="metric-value" id="val-dropouts"><div class="skeleton"></div></div>
         <div class="metric-updated" id="upd-dropouts"></div>
-        <button class="edit-btn" onclick="openModal('dropouts')">編集</button>
+        <button class="edit-btn" onclick="openModalWithAuth('dropouts')">編集</button>
       </div>
       <div class="metric-card" id="card-target">
         <div class="metric-label">生徒数目標</div>
         <div class="metric-value" id="val-target"><div class="skeleton"></div></div>
         <div class="metric-updated" id="upd-target"></div>
-        <button class="edit-btn" onclick="openModal('target')">編集</button>
+        <button class="edit-btn" onclick="openModalWithAuth('target')">編集</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Announcements section -->
+  <section id="announcementsSection" style="display:none">
+    <div class="section-header">
+      <div class="section-title">お知らせ</div>
+      <button class="add-btn" onclick="openAnnouncementModal()">＋ 投稿</button>
+    </div>
+    <div class="section-card">
+      <div class="tabs" id="catTabs">
+        <button class="tab active" data-cat="" onclick="selectCategory(this, '')">全て</button>
+        <button class="tab" data-cat="事務連絡" onclick="selectCategory(this, '事務連絡')">事務連絡</button>
+        <button class="tab" data-cat="生徒対応" onclick="selectCategory(this, '生徒対応')">生徒対応</button>
+        <button class="tab" data-cat="保護者対応" onclick="selectCategory(this, '保護者対応')">保護者対応</button>
+        <button class="tab" data-cat="その他" onclick="selectCategory(this, 'その他')">その他</button>
+      </div>
+      <div class="search-row">
+        <input class="search-input" id="annSearchInput" type="text" placeholder="🔍 キーワード検索..." oninput="debounceAnnSearch()" />
+      </div>
+      <div id="announcementsList"></div>
+      <button class="load-more-btn" id="annLoadMoreBtn" style="display:none" onclick="loadMoreAnnouncements()">もっと見る</button>
+    </div>
+  </section>
+
+  <!-- Memo section -->
+  <section id="memoSection" style="display:none">
+    <div class="section-header">
+      <div class="section-title">朝礼・終礼メモ</div>
+    </div>
+    <div class="section-card">
+      <div class="memo-edit-area">
+        <div class="memo-date-row">
+          <input class="memo-date-input" type="date" id="memoDateInput" onchange="onMemoDateChange()" />
+          <span id="memoDateLabel" style="font-size:0.8rem;color:var(--gray-400)"></span>
+        </div>
+        <textarea class="memo-textarea" id="memoContentInput" placeholder="朝礼・終礼の内容を入力…"></textarea>
+        <div class="memo-save-row">
+          <button class="memo-save-btn" onclick="saveMemo()">保存する</button>
+          <span class="memo-save-msg" id="memoSaveMsg"></span>
+        </div>
+      </div>
+
+      <hr class="memo-divider" />
+
+      <div class="memo-past-title">過去のメモ</div>
+      <div class="memo-filter-row">
+        <input class="search-input" id="memoSearchInput" type="text" placeholder="🔍 キーワード検索..." oninput="debounceMemoSearch()" style="flex:1;min-width:120px" />
+        <select class="memo-range-select" id="memoRangeSelect" onchange="loadPastMemos()">
+          <option value="week">今週</option>
+          <option value="month">今月</option>
+          <option value="all">全期間</option>
+        </select>
+      </div>
+      <div class="past-memos-list" id="pastMemosList">
+        <div class="empty-msg">メモがありません</div>
       </div>
     </div>
   </section>
 
   <!-- Link cards section -->
   <section id="linkSection" style="display:none">
-    <div class="section-title">アプリを開く</div>
+    <div class="section-title" style="margin-bottom:12px">アプリを開く</div>
     <div class="link-cards">
       <a class="link-card" href="https://juku-attendance-silk.vercel.app/" target="_blank" rel="noopener">
         <div class="link-card-icon">📋</div>
@@ -386,7 +640,7 @@
   </section>
 </div>
 
-<!-- Edit modal -->
+<!-- ── Metric edit modal ────────────────────────────────── -->
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal">
     <h2 id="modalTitle">値を編集</h2>
@@ -400,210 +654,512 @@
   </div>
 </div>
 
+<!-- ── Password modal ───────────────────────────────────── -->
+<div class="modal-overlay" id="passwordModal">
+  <div class="modal">
+    <h2>🔒 編集パスワード</h2>
+    <p class="pw-hint">編集するにはパスワードを入力してください。<br>一度認証するとセッション中は再入力不要です。</p>
+    <label>パスワード</label>
+    <input type="password" id="passwordInput" autocomplete="current-password" />
+    <div class="saving-msg error" id="passwordError"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closePasswordModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="checkPassword()">確認</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Announcement form modal ─────────────────────────── -->
+<div class="modal-overlay" id="annModal">
+  <div class="modal">
+    <h2>お知らせを投稿</h2>
+    <label>カテゴリ</label>
+    <select id="annCategorySelect">
+      <option value="事務連絡">事務連絡</option>
+      <option value="生徒対応">生徒対応</option>
+      <option value="保護者対応">保護者対応</option>
+      <option value="その他">その他</option>
+    </select>
+    <label>内容</label>
+    <textarea id="annContentInput" placeholder="お知らせの内容を入力…"></textarea>
+    <div class="saving-msg error" id="annModalMsg"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeAnnouncementModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveAnnouncement()">投稿する</button>
+    </div>
+  </div>
+</div>
+
 <script>
-  // ── Supabase setup ────────────────────────────────────────────────
-  const CONFIG_KEY = 'juku_dashboard_config';
-  let _supabase = null;
+// ── Supabase setup ────────────────────────────────────────────────
+const CONFIG_KEY = 'juku_dashboard_config';
+let _supabase = null;
+const DEFAULT_URL = 'https://xgisflbaomyplxoiwhda.supabase.co';
+const DEFAULT_KEY = 'sb_publishable_-VyLSUzuHwOQ4mvt0_Z4_g_efv-PMAu';
 
-  // Default config (same Supabase project as juku-attendance)
-  const DEFAULT_URL = 'https://xgisflbaomyplxoiwhda.supabase.co';
-  const DEFAULT_KEY = 'sb_publishable_-VyLSUzuHwOQ4mvt0_Z4_g_efv-PMAu';
+function loadConfig() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(CONFIG_KEY));
+    if (stored) return stored;
+  } catch {}
+  return { url: DEFAULT_URL, key: DEFAULT_KEY };
+}
 
-  function loadConfig() {
-    try {
-      const stored = JSON.parse(localStorage.getItem(CONFIG_KEY));
-      if (stored) return stored;
-    } catch {}
-    return { url: DEFAULT_URL, key: DEFAULT_KEY };
+function saveConfig() {
+  const url = document.getElementById('cfgUrl').value.trim();
+  const key = document.getElementById('cfgKey').value.trim();
+  if (!url || !key) {
+    document.getElementById('cfgError').textContent = 'URL と Key を両方入力してください';
+    return;
   }
+  localStorage.setItem(CONFIG_KEY, JSON.stringify({ url, key }));
+  document.getElementById('cfgError').textContent = '';
+  initApp();
+}
 
-  function saveConfig() {
-    const url = document.getElementById('cfgUrl').value.trim();
-    const key = document.getElementById('cfgKey').value.trim();
-    if (!url || !key) {
-      document.getElementById('cfgError').textContent = 'URL と Key を両方入力してください';
-      return;
-    }
-    localStorage.setItem(CONFIG_KEY, JSON.stringify({ url, key }));
-    document.getElementById('cfgError').textContent = '';
-    initApp();
+function initSupabase(url, key) {
+  _supabase = window.supabase.createClient(url, key);
+}
+
+// ── Password auth ─────────────────────────────────────────────────
+const EDIT_AUTH_KEY = 'juku_edit_auth';
+let _pendingAction = null;
+
+function isAuthenticated() {
+  return sessionStorage.getItem(EDIT_AUTH_KEY) === '1';
+}
+
+function requireAuth(action) {
+  if (isAuthenticated()) { action(); return; }
+  _pendingAction = action;
+  openPasswordModal();
+}
+
+function openPasswordModal() {
+  document.getElementById('passwordInput').value = '';
+  document.getElementById('passwordError').textContent = '';
+  document.getElementById('passwordModal').classList.add('open');
+  setTimeout(() => document.getElementById('passwordInput').focus(), 50);
+}
+
+function closePasswordModal() {
+  document.getElementById('passwordModal').classList.remove('open');
+  _pendingAction = null;
+}
+
+async function checkPassword() {
+  const pwd = document.getElementById('passwordInput').value;
+  if (!pwd) {
+    document.getElementById('passwordError').textContent = 'パスワードを入力してください';
+    return;
   }
+  document.getElementById('passwordError').textContent = '確認中…';
 
-  function initSupabase(url, key) {
-    _supabase = window.supabase.createClient(url, key);
-  }
+  try {
+    const res = await fetch('/api/check-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pwd }),
+    });
 
-  // ── Metric data ───────────────────────────────────────────────────
-  const METRICS = [
-    { id: 'current_students', label: '現在の生徒数' },
-    { id: 'dropouts',         label: '退塾数'       },
-    { id: 'target',           label: '生徒数目標'   },
-  ];
-
-  let metricsData = {};  // id -> { value, updated_at }
-
-  async function loadMetrics() {
-    const { data, error } = await _supabase
-      .from('metrics')
-      .select('id, value, updated_at');
-
-    if (error) {
-      console.error('loadMetrics error:', error);
-      return;
-    }
-
-    // Seed missing rows
-    const existingIds = new Set(data.map(r => r.id));
-    const inserts = METRICS
-      .filter(m => !existingIds.has(m.id))
-      .map(m => ({ id: m.id, value: 0 }));
-
-    if (inserts.length > 0) {
-      await _supabase.from('metrics').insert(inserts);
-      // Re-fetch after seeding
-      const { data: refreshed } = await _supabase
-        .from('metrics')
-        .select('id, value, updated_at');
-      if (refreshed) refreshed.forEach(r => { metricsData[r.id] = r; });
-    } else {
-      data.forEach(r => { metricsData[r.id] = r; });
-    }
-
-    renderMetrics();
-    checkAlert();
-  }
-
-  function renderMetrics() {
-    METRICS.forEach(m => {
-      const rec = metricsData[m.id];
-      const valEl = document.getElementById('val-' + m.id);
-      if (rec) {
-        valEl.innerHTML = `${rec.value}<span class="metric-unit"> 人</span>`;
-        const updEl = document.getElementById('upd-' + m.id);
-        updEl.textContent = rec.updated_at
-          ? '最終更新: ' + formatDate(rec.updated_at)
-          : '';
-      } else {
-        valEl.innerHTML = '<span style="color:var(--gray-400)">-</span>';
+    if (res.ok) {
+      sessionStorage.setItem(EDIT_AUTH_KEY, '1');
+      closePasswordModal();
+      if (_pendingAction) {
+        const action = _pendingAction;
+        _pendingAction = null;
+        action();
       }
-    });
-  }
-
-  // ── Alert logic ───────────────────────────────────────────────────
-  function getLastTuesday(today) {
-    const d = new Date(today);
-    d.setHours(0, 0, 0, 0);
-    // 0=Sun,1=Mon,2=Tue,...
-    const day = d.getDay();
-    const diff = day === 2 ? 0 : (day < 2 ? day + 5 : day - 2);
-    d.setDate(d.getDate() - diff);
-    return d;
-  }
-
-  function checkAlert() {
-    const banner = document.getElementById('alertBanner');
-    const lastTue = getLastTuesday(new Date());
-
-    const needsUpdate = METRICS.some(m => {
-      const rec = metricsData[m.id];
-      if (!rec || !rec.updated_at) return true;
-      return new Date(rec.updated_at) < lastTue;
-    });
-
-    if (needsUpdate) {
-      banner.classList.remove('hidden');
     } else {
-      banner.classList.add('hidden');
+      document.getElementById('passwordError').textContent = 'パスワードが違います';
     }
+  } catch {
+    document.getElementById('passwordError').textContent = 'エラーが発生しました';
   }
+}
 
-  // ── Modal ─────────────────────────────────────────────────────────
-  let _editingId = null;
+document.getElementById('passwordInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') checkPassword();
+  if (e.key === 'Escape') closePasswordModal();
+});
+document.getElementById('passwordModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closePasswordModal();
+});
 
-  function openModal(id) {
-    _editingId = id;
-    const m = METRICS.find(x => x.id === id);
-    document.getElementById('modalTitle').textContent = m.label + ' を編集';
-    document.getElementById('modalLabel').textContent = '新しい値（人）';
-    const rec = metricsData[id];
-    document.getElementById('modalInput').value = rec ? rec.value : 0;
-    document.getElementById('modalMsg').textContent = '';
-    document.getElementById('modalOverlay').classList.add('open');
+// ── Metric data ───────────────────────────────────────────────────
+const METRICS = [
+  { id: 'current_students', label: '現在の生徒数' },
+  { id: 'dropouts',         label: '退塾数'       },
+  { id: 'target',           label: '生徒数目標'   },
+];
+let metricsData = {};
+
+async function loadMetrics() {
+  const { data, error } = await _supabase.from('metrics').select('id, value, updated_at');
+  if (error) { console.error('loadMetrics error:', error); return; }
+
+  const existingIds = new Set(data.map(r => r.id));
+  const inserts = METRICS.filter(m => !existingIds.has(m.id)).map(m => ({ id: m.id, value: 0 }));
+  if (inserts.length > 0) {
+    await _supabase.from('metrics').insert(inserts);
+    const { data: refreshed } = await _supabase.from('metrics').select('id, value, updated_at');
+    if (refreshed) refreshed.forEach(r => { metricsData[r.id] = r; });
+  } else {
+    data.forEach(r => { metricsData[r.id] = r; });
+  }
+  renderMetrics();
+  checkAlert();
+}
+
+function renderMetrics() {
+  METRICS.forEach(m => {
+    const rec = metricsData[m.id];
+    const valEl = document.getElementById('val-' + m.id);
+    if (rec) {
+      valEl.innerHTML = `${rec.value}<span class="metric-unit"> 人</span>`;
+      document.getElementById('upd-' + m.id).textContent =
+        rec.updated_at ? '最終更新: ' + formatDateTime(rec.updated_at) : '';
+    } else {
+      valEl.innerHTML = '<span style="color:var(--gray-400)">-</span>';
+    }
+  });
+}
+
+function getLastTuesday(today) {
+  const d = new Date(today);
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay();
+  const diff = day === 2 ? 0 : (day < 2 ? day + 5 : day - 2);
+  d.setDate(d.getDate() - diff);
+  return d;
+}
+
+function checkAlert() {
+  const banner = document.getElementById('alertBanner');
+  const lastTue = getLastTuesday(new Date());
+  const needsUpdate = METRICS.some(m => {
+    const rec = metricsData[m.id];
+    if (!rec || !rec.updated_at) return true;
+    return new Date(rec.updated_at) < lastTue;
+  });
+  banner.classList.toggle('hidden', !needsUpdate);
+}
+
+// ── Metric modal ──────────────────────────────────────────────────
+let _editingId = null;
+
+function openModalWithAuth(id) {
+  requireAuth(() => openModal(id));
+}
+
+function openModal(id) {
+  _editingId = id;
+  const m = METRICS.find(x => x.id === id);
+  document.getElementById('modalTitle').textContent = m.label + ' を編集';
+  document.getElementById('modalLabel').textContent = '新しい値（人）';
+  const rec = metricsData[id];
+  document.getElementById('modalInput').value = rec ? rec.value : 0;
+  document.getElementById('modalMsg').textContent = '';
+  document.getElementById('modalOverlay').classList.add('open');
+  setTimeout(() => {
     document.getElementById('modalInput').focus();
     document.getElementById('modalInput').select();
+  }, 50);
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('open');
+  _editingId = null;
+}
+
+async function saveMetric() {
+  if (!_editingId) return;
+  const value = parseInt(document.getElementById('modalInput').value, 10);
+  if (isNaN(value) || value < 0) {
+    document.getElementById('modalMsg').textContent = '0以上の整数を入力してください';
+    return;
+  }
+  document.getElementById('modalMsg').textContent = '保存中…';
+  const now = new Date().toISOString();
+  const { error } = await _supabase.from('metrics')
+    .upsert({ id: _editingId, value, updated_at: now }, { onConflict: 'id' });
+  if (error) { document.getElementById('modalMsg').textContent = '保存に失敗しました: ' + error.message; return; }
+  metricsData[_editingId] = { id: _editingId, value, updated_at: now };
+  renderMetrics();
+  checkAlert();
+  document.getElementById('modalMsg').textContent = '保存しました';
+  setTimeout(closeModal, 800);
+}
+
+document.getElementById('modalInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') saveMetric();
+  if (e.key === 'Escape') closeModal();
+});
+document.getElementById('modalOverlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+
+// ── Announcements ─────────────────────────────────────────────────
+const ANN_PAGE_SIZE = 10;
+let annOffset = 0;
+let annCategory = '';
+let annKeyword = '';
+let _annSearchTimer = null;
+
+function selectCategory(btn, cat) {
+  document.querySelectorAll('#catTabs .tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  annCategory = cat;
+  loadAnnouncements(true);
+}
+
+function debounceAnnSearch() {
+  clearTimeout(_annSearchTimer);
+  _annSearchTimer = setTimeout(() => {
+    annKeyword = document.getElementById('annSearchInput').value.trim();
+    loadAnnouncements(true);
+  }, 350);
+}
+
+async function loadAnnouncements(reset = true) {
+  if (reset) {
+    annOffset = 0;
+    document.getElementById('announcementsList').innerHTML = '';
   }
 
-  function closeModal() {
-    document.getElementById('modalOverlay').classList.remove('open');
-    _editingId = null;
+  let query = _supabase
+    .from('announcements')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .range(annOffset, annOffset + ANN_PAGE_SIZE);
+
+  if (annCategory) query = query.eq('category', annCategory);
+  if (annKeyword)  query = query.ilike('content', `%${annKeyword}%`);
+
+  const { data, error } = await query;
+  if (error) { console.error('loadAnnouncements error:', error); return; }
+
+  const hasMore = data.length > ANN_PAGE_SIZE;
+  const items = hasMore ? data.slice(0, ANN_PAGE_SIZE) : data;
+  const list = document.getElementById('announcementsList');
+
+  if (reset && items.length === 0) {
+    list.innerHTML = '<div class="empty-msg">お知らせはありません</div>';
+  } else {
+    items.forEach(ann => list.appendChild(renderAnnouncement(ann)));
   }
 
-  async function saveMetric() {
-    if (!_editingId) return;
-    const raw = document.getElementById('modalInput').value;
-    const value = parseInt(raw, 10);
-    if (isNaN(value) || value < 0) {
-      document.getElementById('modalMsg').textContent = '0以上の整数を入力してください';
-      return;
-    }
+  annOffset += items.length;
+  document.getElementById('annLoadMoreBtn').style.display = hasMore ? 'block' : 'none';
+}
 
-    document.getElementById('modalMsg').textContent = '保存中...';
+function loadMoreAnnouncements() {
+  loadAnnouncements(false);
+}
 
-    const now = new Date().toISOString();
+function renderAnnouncement(ann) {
+  const el = document.createElement('div');
+  el.className = 'ann-item';
+  el.innerHTML = `
+    <div class="ann-header">
+      <span class="cat-badge cat-${ann.category}">${escapeHtml(ann.category)}</span>
+      <span class="ann-date">${formatDateTime(ann.created_at)}</span>
+      <button class="ann-delete-btn" title="削除">🗑</button>
+    </div>
+    <div class="ann-content">${escapeHtml(ann.content)}</div>
+  `;
+  el.querySelector('.ann-delete-btn').addEventListener('click', () => {
+    requireAuth(() => deleteAnnouncement(ann.id));
+  });
+  return el;
+}
+
+async function deleteAnnouncement(id) {
+  if (!confirm('このお知らせを削除しますか？')) return;
+  const { error } = await _supabase.from('announcements').delete().eq('id', id);
+  if (error) { alert('削除に失敗しました'); return; }
+  loadAnnouncements(true);
+}
+
+function openAnnouncementModal() {
+  requireAuth(() => {
+    document.getElementById('annContentInput').value = '';
+    document.getElementById('annCategorySelect').value = '事務連絡';
+    document.getElementById('annModalMsg').textContent = '';
+    document.getElementById('annModal').classList.add('open');
+    setTimeout(() => document.getElementById('annContentInput').focus(), 50);
+  });
+}
+
+function closeAnnouncementModal() {
+  document.getElementById('annModal').classList.remove('open');
+}
+
+async function saveAnnouncement() {
+  const content  = document.getElementById('annContentInput').value.trim();
+  const category = document.getElementById('annCategorySelect').value;
+  if (!content) {
+    document.getElementById('annModalMsg').textContent = '内容を入力してください';
+    return;
+  }
+  document.getElementById('annModalMsg').textContent = '投稿中…';
+  const { error } = await _supabase.from('announcements').insert({ content, category });
+  if (error) { document.getElementById('annModalMsg').textContent = '投稿に失敗しました'; return; }
+  closeAnnouncementModal();
+  loadAnnouncements(true);
+}
+
+document.getElementById('annModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeAnnouncementModal();
+});
+
+// ── Memos ─────────────────────────────────────────────────────────
+let _memoSearchTimer = null;
+
+function todayStr() {
+  return new Date().toLocaleDateString('sv-SE'); // 'YYYY-MM-DD' in local time
+}
+
+function onMemoDateChange() {
+  const dateStr = document.getElementById('memoDateInput').value;
+  if (dateStr) loadMemoForDate(dateStr);
+}
+
+async function loadMemoForDate(dateStr) {
+  document.getElementById('memoContentInput').value = '';
+  const { data } = await _supabase
+    .from('memos')
+    .select('content')
+    .eq('memo_date', dateStr)
+    .maybeSingle();
+  document.getElementById('memoContentInput').value = data ? data.content : '';
+}
+
+function saveMemo() {
+  requireAuth(async () => {
+    const dateStr = document.getElementById('memoDateInput').value;
+    const content = document.getElementById('memoContentInput').value;
+    if (!dateStr) { return; }
+
     const { error } = await _supabase
-      .from('metrics')
-      .upsert({ id: _editingId, value, updated_at: now }, { onConflict: 'id' });
+      .from('memos')
+      .upsert({ memo_date: dateStr, content, updated_at: new Date().toISOString() },
+               { onConflict: 'memo_date' });
 
-    if (error) {
-      document.getElementById('modalMsg').textContent = '保存に失敗しました: ' + error.message;
-      return;
-    }
+    if (error) { alert('保存に失敗しました: ' + error.message); return; }
 
-    metricsData[_editingId] = { id: _editingId, value, updated_at: now };
-    renderMetrics();
-    checkAlert();
-    document.getElementById('modalMsg').textContent = '保存しました';
-    setTimeout(closeModal, 800);
-  }
-
-  // Allow Enter key in modal
-  document.getElementById('modalInput').addEventListener('keydown', e => {
-    if (e.key === 'Enter') saveMetric();
-    if (e.key === 'Escape') closeModal();
+    const msg = document.getElementById('memoSaveMsg');
+    msg.textContent = '保存しました';
+    setTimeout(() => { msg.textContent = ''; }, 2500);
+    loadPastMemos();
   });
-  document.getElementById('modalOverlay').addEventListener('click', e => {
-    if (e.target === e.currentTarget) closeModal();
+}
+
+function debounceMemoSearch() {
+  clearTimeout(_memoSearchTimer);
+  _memoSearchTimer = setTimeout(loadPastMemos, 350);
+}
+
+async function loadPastMemos() {
+  const keyword = document.getElementById('memoSearchInput').value.trim();
+  const range   = document.getElementById('memoRangeSelect').value;
+
+  let query = _supabase
+    .from('memos')
+    .select('memo_date, content')
+    .order('memo_date', { ascending: false })
+    .limit(100);
+
+  if (keyword) query = query.ilike('content', `%${keyword}%`);
+
+  const now = new Date();
+  if (range === 'week') {
+    const start = new Date(now);
+    start.setDate(now.getDate() - 6);
+    query = query.gte('memo_date', start.toLocaleDateString('sv-SE'));
+  } else if (range === 'month') {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    query = query.gte('memo_date', start.toLocaleDateString('sv-SE'));
+  }
+
+  const { data, error } = await query;
+  if (error) { console.error('loadPastMemos error:', error); return; }
+
+  const list = document.getElementById('pastMemosList');
+  list.innerHTML = '';
+  if (!data || data.length === 0) {
+    list.innerHTML = '<div class="empty-msg">メモが見つかりません</div>';
+    return;
+  }
+
+  data.forEach(memo => {
+    const el = document.createElement('div');
+    el.className = 'memo-past-item';
+    const preview = memo.content.length > 55
+      ? memo.content.slice(0, 55) + '…'
+      : memo.content;
+    el.innerHTML = `
+      <div class="memo-past-date">${formatDateJP(memo.memo_date)}</div>
+      <div class="memo-past-preview">${escapeHtml(preview) || '（内容なし）'}</div>
+    `;
+    el.addEventListener('click', () => {
+      document.getElementById('memoDateInput').value = memo.memo_date;
+      loadMemoForDate(memo.memo_date);
+      document.getElementById('memoDateInput').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    list.appendChild(el);
   });
+}
 
-  // ── Helpers ───────────────────────────────────────────────────────
-  function formatDate(iso) {
-    const d = new Date(iso);
-    const y = d.getFullYear();
-    const mo = String(d.getMonth() + 1).padStart(2, '0');
-    const da = String(d.getDate()).padStart(2, '0');
-    const h = String(d.getHours()).padStart(2, '0');
-    const mi = String(d.getMinutes()).padStart(2, '0');
-    return `${y}/${mo}/${da} ${h}:${mi}`;
-  }
+// ── Helpers ───────────────────────────────────────────────────────
+function formatDateTime(iso) {
+  const d = new Date(iso);
+  return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
-  // ── Init ──────────────────────────────────────────────────────────
-  async function initApp() {
-    const cfg = loadConfig();
-    // cfg always has defaults, so setup screen is only shown if user explicitly clears it
-    document.getElementById('setupScreen').style.display = 'none';
-    document.getElementById('metricsSection').style.display = 'block';
-    document.getElementById('linkSection').style.display = 'block';
+function formatDateJP(dateStr) {
+  const [y, m, d] = dateStr.split('-');
+  return `${y}年${m}月${d}日`;
+}
 
-    initSupabase(cfg.url, cfg.key);
-    await loadMetrics();
-  }
+function pad(n) { return String(n).padStart(2, '0'); }
 
-  initApp();
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 
-  // Register service worker
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
-  }
+// ── Init ──────────────────────────────────────────────────────────
+async function initApp() {
+  const cfg = loadConfig();
+  document.getElementById('setupScreen').style.display = 'none';
+  document.getElementById('metricsSection').style.display = 'block';
+  document.getElementById('announcementsSection').style.display = 'block';
+  document.getElementById('memoSection').style.display = 'block';
+  document.getElementById('linkSection').style.display = 'block';
+
+  initSupabase(cfg.url, cfg.key);
+
+  // Init memo date to today
+  const today = todayStr();
+  document.getElementById('memoDateInput').value = today;
+
+  await Promise.all([
+    loadMetrics(),
+    loadAnnouncements(true),
+    loadMemoForDate(today),
+    loadPastMemos(),
+  ]);
+}
+
+initApp();
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+}
 </script>
 </body>
 </html>

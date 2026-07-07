@@ -1,7 +1,7 @@
 {
-  "name": "学校運営ダッシュボード",
+  "name": "鶴瀬東専用ダッシュボード",
   "short_name": "ダッシュボード",
-  "description": "塾管理ポータル",
+  "description": "鶴瀬東専用ダッシュボード",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f9fafb",
