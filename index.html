@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>学校運営ダッシュボード</title>
+  <link rel="manifest" href="manifest.json" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary: #4f46e5;
+      --primary-light: #e0e7ff;
+      --danger: #dc2626;
+      --danger-light: #fee2e2;
+      --success: #16a34a;
+      --gray-50: #f9fafb;
+      --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb;
+      --gray-400: #9ca3af;
+      --gray-600: #4b5563;
+      --gray-800: #1f2937;
+      --white: #ffffff;
+      --radius: 12px;
+      --shadow: 0 1px 3px rgba(0,0,0,.1), 0 1px 2px rgba(0,0,0,.06);
+      --shadow-md: 0 4px 6px rgba(0,0,0,.07), 0 2px 4px rgba(0,0,0,.06);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--gray-50);
+      color: var(--gray-800);
+      min-height: 100vh;
+    }
+
+    header {
+      background: var(--white);
+      border-bottom: 1px solid var(--gray-200);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    header h1 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--gray-800);
+    }
+
+    header .subtitle {
+      font-size: 0.75rem;
+      color: var(--gray-400);
+      margin-top: 2px;
+    }
+
+    .main {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 24px 16px 48px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* Alert Banner */
+    .alert-banner {
+      display: none;
+      background: var(--danger-light);
+      border: 1px solid #fca5a5;
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 0.875rem;
+      color: var(--danger);
+      line-height: 1.5;
+    }
+
+    .alert-banner.hidden { display: none; }
+
+    .alert-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 1px; }
+
+    /* Section titles */
+    .section-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--gray-400);
+      margin-bottom: 12px;
+    }
+
+    /* Metrics grid */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    @media (max-width: 500px) {
+      .metrics-grid { grid-template-columns: 1fr; }
+    }
+
+    .metric-card {
+      background: var(--white);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 20px 16px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      position: relative;
+    }
+
+    .metric-label {
+      font-size: 0.75rem;
+      color: var(--gray-600);
+      font-weight: 500;
+    }
+
+    .metric-value {
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: var(--gray-800);
+      line-height: 1;
+    }
+
+    .metric-unit {
+      font-size: 1rem;
+      font-weight: 400;
+      color: var(--gray-400);
+    }
+
+    .metric-updated {
+      font-size: 0.7rem;
+      color: var(--gray-400);
+      margin-top: 4px;
+    }
+
+    .edit-btn {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: var(--gray-100);
+      border: none;
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 0.7rem;
+      color: var(--gray-600);
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .edit-btn:hover { background: var(--gray-200); }
+
+    /* Edit modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.45);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .modal-overlay.open { display: flex; }
+
+    .modal {
+      background: var(--white);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-md);
+      padding: 28px 24px;
+      width: 100%;
+      max-width: 340px;
+    }
+
+    .modal h2 { font-size: 1rem; font-weight: 700; margin-bottom: 16px; }
+
+    .modal label { font-size: 0.8rem; color: var(--gray-600); display: block; margin-bottom: 6px; }
+
+    .modal input[type="number"] {
+      width: 100%;
+      border: 1px solid var(--gray-200);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: var(--gray-800);
+      outline: none;
+      transition: border-color .15s;
+    }
+    .modal input[type="number"]:focus { border-color: var(--primary); }
+
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+    .btn:hover { opacity: .85; }
+    .btn-primary { background: var(--primary); color: var(--white); }
+    .btn-secondary { background: var(--gray-100); color: var(--gray-600); }
+
+    .saving-msg {
+      font-size: 0.75rem;
+      color: var(--success);
+      margin-top: 8px;
+      text-align: center;
+      min-height: 18px;
+    }
+
+    /* App link cards */
+    .link-cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    @media (max-width: 500px) {
+      .link-cards { grid-template-columns: 1fr; }
+    }
+
+    .link-card {
+      background: var(--white);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 20px 18px;
+      text-decoration: none;
+      color: inherit;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      border: 2px solid transparent;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .link-card:hover {
+      border-color: var(--primary-light);
+      box-shadow: var(--shadow-md);
+    }
+
+    .link-card-icon { font-size: 1.6rem; }
+    .link-card-title { font-size: 0.95rem; font-weight: 700; color: var(--gray-800); }
+    .link-card-desc { font-size: 0.75rem; color: var(--gray-400); }
+
+    .link-card-arrow {
+      font-size: 0.75rem;
+      color: var(--primary);
+      font-weight: 600;
+      margin-top: 8px;
+    }
+
+    /* Loading skeleton */
+    .skeleton {
+      background: linear-gradient(90deg, var(--gray-100) 25%, var(--gray-200) 50%, var(--gray-100) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.2s infinite;
+      border-radius: 6px;
+      height: 2.4rem;
+      width: 70%;
+    }
+
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    .error-notice {
+      background: var(--danger-light);
+      color: var(--danger);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 0.8rem;
+    }
+
+    /* Config setup screen */
+    .setup-screen {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 28px 24px;
+      box-shadow: var(--shadow);
+    }
+    .setup-screen h2 { font-size: 1rem; font-weight: 700; margin-bottom: 8px; }
+    .setup-screen p { font-size: 0.85rem; color: var(--gray-600); margin-bottom: 16px; line-height: 1.6; }
+    .setup-screen input {
+      width: 100%;
+      border: 1px solid var(--gray-200);
+      border-radius: 8px;
+      padding: 9px 12px;
+      font-size: 0.85rem;
+      margin-bottom: 10px;
+      outline: none;
+    }
+    .setup-screen input:focus { border-color: var(--primary); }
+    .setup-screen label { font-size: 0.78rem; color: var(--gray-600); display: block; margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>学校運営ダッシュボード</h1>
+    <div class="subtitle">塾管理ポータル</div>
+  </div>
+</header>
+
+<div class="main" id="main">
+  <!-- Alert banner -->
+  <div class="alert-banner hidden" id="alertBanner">
+    <span class="alert-icon">⚠️</span>
+    <span id="alertMsg">今週分のデータが未更新です。各指標を確認して更新してください。</span>
+  </div>
+
+  <!-- Setup screen (shown if no Supabase config) -->
+  <div class="setup-screen" id="setupScreen" style="display:none">
+    <h2>Supabase 設定</h2>
+    <p>
+      初回起動時のみ、Supabase の接続情報を入力してください。<br>
+      入力後は <code>localStorage</code> に保存され、次回以降は自動読み込みされます。
+    </p>
+    <label>Supabase URL</label>
+    <input id="cfgUrl" type="text" placeholder="https://xxxx.supabase.co" />
+    <label>Supabase Anon Key</label>
+    <input id="cfgKey" type="text" placeholder="eyJ..." />
+    <button class="btn btn-primary" onclick="saveConfig()" style="width:100%;margin-top:4px">保存して接続</button>
+    <div class="saving-msg" id="cfgError"></div>
+  </div>
+
+  <!-- Metrics section -->
+  <section id="metricsSection" style="display:none">
+    <div class="section-title">生徒数指標</div>
+    <div class="metrics-grid">
+      <div class="metric-card" id="card-current_students">
+        <div class="metric-label">現在の生徒数</div>
+        <div class="metric-value" id="val-current_students"><div class="skeleton"></div></div>
+        <div class="metric-updated" id="upd-current_students"></div>
+        <button class="edit-btn" onclick="openModal('current_students')">編集</button>
+      </div>
+      <div class="metric-card" id="card-dropouts">
+        <div class="metric-label">退塾数</div>
+        <div class="metric-value" id="val-dropouts"><div class="skeleton"></div></div>
+        <div class="metric-updated" id="upd-dropouts"></div>
+        <button class="edit-btn" onclick="openModal('dropouts')">編集</button>
+      </div>
+      <div class="metric-card" id="card-target">
+        <div class="metric-label">生徒数目標</div>
+        <div class="metric-value" id="val-target"><div class="skeleton"></div></div>
+        <div class="metric-updated" id="upd-target"></div>
+        <button class="edit-btn" onclick="openModal('target')">編集</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Link cards section -->
+  <section id="linkSection" style="display:none">
+    <div class="section-title">アプリを開く</div>
+    <div class="link-cards">
+      <a class="link-card" href="https://juku-attendance-silk.vercel.app/" target="_blank" rel="noopener">
+        <div class="link-card-icon">📋</div>
+        <div class="link-card-title">出席確認アプリ</div>
+        <div class="link-card-desc">生徒の出席・宿題・補講を管理</div>
+        <div class="link-card-arrow">開く →</div>
+      </a>
+      <a class="link-card" href="https://juku-report-app.vercel.app" target="_blank" rel="noopener">
+        <div class="link-card-icon">📨</div>
+        <div class="link-card-title">保護者連絡管理アプリ</div>
+        <div class="link-card-desc">保護者へのレポート・連絡を管理</div>
+        <div class="link-card-arrow">開く →</div>
+      </a>
+    </div>
+  </section>
+</div>
+
+<!-- Edit modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h2 id="modalTitle">値を編集</h2>
+    <label id="modalLabel">新しい値</label>
+    <input type="number" id="modalInput" min="0" step="1" />
+    <div class="saving-msg" id="modalMsg"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveMetric()">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── Supabase setup ────────────────────────────────────────────────
+  const CONFIG_KEY = 'juku_dashboard_config';
+  let _supabase = null;
+
+  function loadConfig() {
+    try {
+      return JSON.parse(localStorage.getItem(CONFIG_KEY));
+    } catch { return null; }
+  }
+
+  function saveConfig() {
+    const url = document.getElementById('cfgUrl').value.trim();
+    const key = document.getElementById('cfgKey').value.trim();
+    if (!url || !key) {
+      document.getElementById('cfgError').textContent = 'URL と Key を両方入力してください';
+      return;
+    }
+    localStorage.setItem(CONFIG_KEY, JSON.stringify({ url, key }));
+    document.getElementById('cfgError').textContent = '';
+    initApp();
+  }
+
+  function initSupabase(url, key) {
+    _supabase = window.supabase.createClient(url, key);
+  }
+
+  // ── Metric data ───────────────────────────────────────────────────
+  const METRICS = [
+    { id: 'current_students', label: '現在の生徒数' },
+    { id: 'dropouts',         label: '退塾数'       },
+    { id: 'target',           label: '生徒数目標'   },
+  ];
+
+  let metricsData = {};  // id -> { value, updated_at }
+
+  async function loadMetrics() {
+    const { data, error } = await _supabase
+      .from('metrics')
+      .select('id, value, updated_at');
+
+    if (error) {
+      console.error('loadMetrics error:', error);
+      return;
+    }
+
+    // Seed missing rows
+    const existingIds = new Set(data.map(r => r.id));
+    const inserts = METRICS
+      .filter(m => !existingIds.has(m.id))
+      .map(m => ({ id: m.id, value: 0 }));
+
+    if (inserts.length > 0) {
+      await _supabase.from('metrics').insert(inserts);
+      // Re-fetch after seeding
+      const { data: refreshed } = await _supabase
+        .from('metrics')
+        .select('id, value, updated_at');
+      if (refreshed) refreshed.forEach(r => { metricsData[r.id] = r; });
+    } else {
+      data.forEach(r => { metricsData[r.id] = r; });
+    }
+
+    renderMetrics();
+    checkAlert();
+  }
+
+  function renderMetrics() {
+    METRICS.forEach(m => {
+      const rec = metricsData[m.id];
+      const valEl = document.getElementById('val-' + m.id);
+      if (rec) {
+        valEl.innerHTML = `${rec.value}<span class="metric-unit"> 人</span>`;
+        const updEl = document.getElementById('upd-' + m.id);
+        updEl.textContent = rec.updated_at
+          ? '最終更新: ' + formatDate(rec.updated_at)
+          : '';
+      } else {
+        valEl.innerHTML = '<span style="color:var(--gray-400)">-</span>';
+      }
+    });
+  }
+
+  // ── Alert logic ───────────────────────────────────────────────────
+  function getLastTuesday(today) {
+    const d = new Date(today);
+    d.setHours(0, 0, 0, 0);
+    // 0=Sun,1=Mon,2=Tue,...
+    const day = d.getDay();
+    const diff = day === 2 ? 0 : (day < 2 ? day + 5 : day - 2);
+    d.setDate(d.getDate() - diff);
+    return d;
+  }
+
+  function checkAlert() {
+    const banner = document.getElementById('alertBanner');
+    const lastTue = getLastTuesday(new Date());
+
+    const needsUpdate = METRICS.some(m => {
+      const rec = metricsData[m.id];
+      if (!rec || !rec.updated_at) return true;
+      return new Date(rec.updated_at) < lastTue;
+    });
+
+    if (needsUpdate) {
+      banner.classList.remove('hidden');
+    } else {
+      banner.classList.add('hidden');
+    }
+  }
+
+  // ── Modal ─────────────────────────────────────────────────────────
+  let _editingId = null;
+
+  function openModal(id) {
+    _editingId = id;
+    const m = METRICS.find(x => x.id === id);
+    document.getElementById('modalTitle').textContent = m.label + ' を編集';
+    document.getElementById('modalLabel').textContent = '新しい値（人）';
+    const rec = metricsData[id];
+    document.getElementById('modalInput').value = rec ? rec.value : 0;
+    document.getElementById('modalMsg').textContent = '';
+    document.getElementById('modalOverlay').classList.add('open');
+    document.getElementById('modalInput').focus();
+    document.getElementById('modalInput').select();
+  }
+
+  function closeModal() {
+    document.getElementById('modalOverlay').classList.remove('open');
+    _editingId = null;
+  }
+
+  async function saveMetric() {
+    if (!_editingId) return;
+    const raw = document.getElementById('modalInput').value;
+    const value = parseInt(raw, 10);
+    if (isNaN(value) || value < 0) {
+      document.getElementById('modalMsg').textContent = '0以上の整数を入力してください';
+      return;
+    }
+
+    document.getElementById('modalMsg').textContent = '保存中...';
+
+    const now = new Date().toISOString();
+    const { error } = await _supabase
+      .from('metrics')
+      .upsert({ id: _editingId, value, updated_at: now }, { onConflict: 'id' });
+
+    if (error) {
+      document.getElementById('modalMsg').textContent = '保存に失敗しました: ' + error.message;
+      return;
+    }
+
+    metricsData[_editingId] = { id: _editingId, value, updated_at: now };
+    renderMetrics();
+    checkAlert();
+    document.getElementById('modalMsg').textContent = '保存しました';
+    setTimeout(closeModal, 800);
+  }
+
+  // Allow Enter key in modal
+  document.getElementById('modalInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') saveMetric();
+    if (e.key === 'Escape') closeModal();
+  });
+  document.getElementById('modalOverlay').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeModal();
+  });
+
+  // ── Helpers ───────────────────────────────────────────────────────
+  function formatDate(iso) {
+    const d = new Date(iso);
+    const y = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, '0');
+    const da = String(d.getDate()).padStart(2, '0');
+    const h = String(d.getHours()).padStart(2, '0');
+    const mi = String(d.getMinutes()).padStart(2, '0');
+    return `${y}/${mo}/${da} ${h}:${mi}`;
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────
+  async function initApp() {
+    const cfg = loadConfig();
+    if (!cfg) {
+      document.getElementById('setupScreen').style.display = 'block';
+      return;
+    }
+
+    document.getElementById('setupScreen').style.display = 'none';
+    document.getElementById('metricsSection').style.display = 'block';
+    document.getElementById('linkSection').style.display = 'block';
+
+    initSupabase(cfg.url, cfg.key);
+    await loadMetrics();
+  }
+
+  initApp();
+
+  // Register service worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "name": "学校運営ダッシュボード",
+  "short_name": "ダッシュボード",
+  "description": "塾管理ポータル",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f9fafb",
+  "theme_color": "#4f46e5",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
