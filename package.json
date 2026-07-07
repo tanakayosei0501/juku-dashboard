@@ -1,0 +1,11 @@
+{
+  "name": "juku-dashboard",
+  "version": "1.0.0",
+  "description": "学校運営ダッシュボード",
+  "scripts": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tanakayosei0501/juku-dashboard.git"
+  },
+  "license": "ISC"
+}
