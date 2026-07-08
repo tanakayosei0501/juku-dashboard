@@ -196,6 +196,13 @@
     .cat-badge-seito { background: #dcfce7; color: #16a34a; }
     .cat-badge-hogo  { background: var(--warning-light); color: var(--warning); }
     .cat-badge-other { background: var(--gray-100); color: var(--gray-600); }
+    .cat-badge-memo  { background: #fef9c3; color: #854d0e; }
+
+    .ann-memo-btn {
+      font-size: 0.72rem; color: var(--primary); background: none;
+      border: none; cursor: pointer; padding: 2px 6px; border-radius: 4px;
+    }
+    .ann-memo-btn:hover { background: var(--primary-light); }
 
     .ann-date { font-size: 0.72rem; color: var(--gray-400); }
     .ann-actions { margin-left: auto; display: flex; gap: 6px; }
@@ -234,13 +241,32 @@
       color: var(--gray-600); cursor: pointer;
     }
     .today-btn:hover { background: var(--gray-200); }
-    .memo-textarea {
-      width: 100%; border: 1px solid var(--gray-200); border-radius: 8px;
-      padding: 12px; font-size: 0.875rem; line-height: 1.7;
-      resize: vertical; min-height: 160px; font-family: inherit; outline: none;
+    /* Memo entry list */
+    .memo-entry-list { padding: 0 18px; }
+    .memo-entry-item {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 10px 0; border-bottom: 1px solid var(--gray-100);
     }
-    .memo-textarea:focus { border-color: var(--primary); }
-    .memo-save-row { display: flex; justify-content: flex-end; margin-top: 10px; }
+    .memo-entry-item:last-child { border-bottom: none; }
+    .memo-entry-star { color: var(--warning); font-size: 0.95rem; flex-shrink: 0; min-width: 16px; margin-top: 1px; }
+    .memo-entry-content { font-size: 0.875rem; line-height: 1.55; flex: 1; word-break: break-word; }
+    .memo-entry-actions { display: flex; gap: 4px; flex-shrink: 0; }
+
+    /* Add entry form */
+    .memo-add-form { padding: 10px 18px 16px; }
+    .memo-add-row { display: flex; gap: 8px; align-items: center; }
+    .memo-add-input {
+      flex: 1; border: 1px solid var(--gray-200); border-radius: 8px;
+      padding: 9px 12px; font-size: 0.875rem; font-family: inherit;
+      outline: none; min-width: 0;
+    }
+    .memo-add-input:focus { border-color: var(--primary); }
+    .memo-add-check {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 0.78rem; color: var(--warning); font-weight: 600;
+      flex-shrink: 0; cursor: pointer; white-space: nowrap;
+    }
+    .memo-add-check input[type="checkbox"] { cursor: pointer; width: 15px; height: 15px; accent-color: var(--warning); }
 
     .memo-divider { border: none; border-top: 1px dashed var(--gray-200); margin: 18px 0 14px; }
     .memo-search-title { font-size: 0.78rem; color: var(--gray-400); font-weight: 600; margin-bottom: 10px; }
@@ -531,9 +557,18 @@
           <input type="date" id="memoDatePicker" onchange="onMemoDayChange()" />
           <button class="today-btn" onclick="setMemoToday()">今日</button>
         </div>
-        <textarea class="memo-textarea" id="memoTextarea" placeholder="朝礼・終礼の内容を記録..."></textarea>
-        <div class="memo-save-row">
-          <button class="btn btn-primary btn-sm" id="memoSaveBtn" onclick="saveMemo()">保存する</button>
+        <div class="memo-entry-list" id="memoEntryList">
+          <div class="empty-msg" style="padding:12px 0">この日のメモはまだありません</div>
+        </div>
+        <div class="memo-add-form">
+          <div class="memo-add-row">
+            <input class="memo-add-input" id="memoAddInput" type="text" placeholder="新しいメモを入力..." />
+            <label class="memo-add-check">
+              <input type="checkbox" id="memoAddImportant" />
+              ★ 重要
+            </label>
+            <button class="btn btn-primary btn-sm" onclick="addMemoEntry()">追加</button>
+          </div>
         </div>
 
         <hr class="memo-divider" />
@@ -572,6 +607,24 @@
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeMetricModal()">キャンセル</button>
       <button class="btn btn-primary" onclick="saveMetric()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Memo Entry Edit -->
+<div class="modal-overlay" id="memoEntryModalOverlay">
+  <div class="modal">
+    <h2>メモ項目を編集</h2>
+    <label>内容</label>
+    <textarea id="memoEntryContent" rows="3" placeholder="メモの内容..."></textarea>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-size:0.875rem;cursor:pointer;color:var(--warning);font-weight:600">
+      <input type="checkbox" id="memoEntryImportant" style="width:16px;height:16px;accent-color:var(--warning);cursor:pointer" />
+      ★ 重要としてお知らせ一覧にも表示する
+    </label>
+    <div class="modal-msg" id="memoEntryMsg"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeMemoEntryModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveMemoEntry()">保存</button>
     </div>
   </div>
 </div>
@@ -742,29 +795,48 @@ function checkAlert() {
 // ── Announcements ──────────────────────────────────────────────────
 const ANN_PAGE = 10;
 let _annOffset = 0, _annCat = 'all', _annKw = '', _annHasMore = false;
-let _annTimer = null, _editAnnId = null;
+let _annTimer = null, _editAnnId = null, _annAllRows = [];
 
 const CAT_CLASS = { '事務連絡':'cat-badge-jimu','生徒対応':'cat-badge-seito','保護者対応':'cat-badge-hogo','その他':'cat-badge-other' };
 
 async function loadAnn(reset = false) {
-  if (reset) { _annOffset = 0; document.getElementById('annList').innerHTML = ''; }
+  if (reset) {
+    _annOffset = 0;
+    _annAllRows = [];
+    document.getElementById('annList').innerHTML = '';
 
-  let q = _sb.from('announcements').select('*', { count: 'exact' })
-    .order('created_at', { ascending: false });
-  if (_annCat !== 'all') q = q.eq('category', _annCat);
-  if (_annKw.trim()) q = q.ilike('content', `%${_annKw.trim()}%`);
-  q = q.range(_annOffset, _annOffset + ANN_PAGE - 1);
+    const kw = _annKw.trim();
+    if (_annCat === 'all') {
+      // Merge announcements + important memo_entries, sort by date desc
+      let annQ = _sb.from('announcements').select('*').order('created_at', { ascending: false }).limit(200);
+      if (kw) annQ = annQ.ilike('content', `%${kw}%`);
+      let memoQ = _sb.from('memo_entries').select('*').eq('is_important', true)
+        .order('created_at', { ascending: false }).limit(200);
+      if (kw) memoQ = memoQ.ilike('content', `%${kw}%`);
 
-  const { data, count } = await q;
-  const rows = data || [];
-
-  if (rows.length === 0 && _annOffset === 0) {
-    document.getElementById('annList').innerHTML = '<div class="empty-msg">お知らせはありません</div>';
-  } else {
-    renderAnnRows(rows);
+      const [annRes, memoRes] = await Promise.all([annQ, memoQ]);
+      const anns  = (annRes.data  || []).map(r => ({ ...r, _type: 'ann' }));
+      const memos = (memoRes.data || []).map(r => ({ ...r, _type: 'memo' }));
+      _annAllRows = [...anns, ...memos].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    } else {
+      let q = _sb.from('announcements').select('*').eq('category', _annCat)
+        .order('created_at', { ascending: false }).limit(200);
+      if (kw) q = q.ilike('content', `%${kw}%`);
+      const { data } = await q;
+      _annAllRows = (data || []).map(r => ({ ...r, _type: 'ann' }));
+    }
   }
-  _annOffset += rows.length;
-  _annHasMore = count > _annOffset;
+
+  const list = document.getElementById('annList');
+  const page = _annAllRows.slice(_annOffset, _annOffset + ANN_PAGE);
+
+  if (_annOffset === 0 && page.length === 0) {
+    list.innerHTML = '<div class="empty-msg">お知らせはありません</div>';
+  } else {
+    renderAnnRows(page);
+  }
+  _annOffset += page.length;
+  _annHasMore = _annOffset < _annAllRows.length;
   document.getElementById('annLoadMoreWrap').style.display = _annHasMore ? 'block' : 'none';
 }
 
@@ -773,16 +845,28 @@ function renderAnnRows(rows) {
   rows.forEach(row => {
     const div = document.createElement('div');
     div.className = 'ann-card';
-    div.innerHTML = `
-      <div class="ann-card-top">
-        <span class="cat-badge ${CAT_CLASS[row.category] || 'cat-badge-other'}">${escHtml(row.category)}</span>
-        <span class="ann-date">${fmtDT(row.created_at)}</span>
-        <div class="ann-actions">
-          <button class="icon-btn" onclick="openAnnModal('${row.id}')" title="編集">✏️</button>
-          <button class="icon-btn danger" onclick="deleteAnn('${row.id}')" title="削除">🗑️</button>
+    if (row._type === 'memo') {
+      div.innerHTML = `
+        <div class="ann-card-top">
+          <span class="cat-badge cat-badge-memo">🗒️ 朝礼メモ</span>
+          <span class="ann-date">${fmtDate(row.memo_date)}</span>
+          <div class="ann-actions">
+            <button class="ann-memo-btn" onclick="jumpToMemoDate('${row.memo_date}')">メモを開く →</button>
+          </div>
         </div>
-      </div>
-      <div class="ann-content">${escHtml(row.content)}</div>`;
+        <div class="ann-content">★ ${escHtml(row.content)}</div>`;
+    } else {
+      div.innerHTML = `
+        <div class="ann-card-top">
+          <span class="cat-badge ${CAT_CLASS[row.category] || 'cat-badge-other'}">${escHtml(row.category)}</span>
+          <span class="ann-date">${fmtDT(row.created_at)}</span>
+          <div class="ann-actions">
+            <button class="icon-btn" onclick="openAnnModal('${row.id}')" title="編集">✏️</button>
+            <button class="icon-btn danger" onclick="deleteAnn('${row.id}')" title="削除">🗑️</button>
+          </div>
+        </div>
+        <div class="ann-content">${escHtml(row.content)}</div>`;
+    }
     list.appendChild(div);
   });
 }
@@ -844,40 +928,108 @@ async function deleteAnn(id) {
 document.getElementById('annModalOverlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeAnnModal(); });
 
 // ── Memos ──────────────────────────────────────────────────────────
-let _memoDate = todayStr();
+let _memoDate = '';
+let _editMemoEntryId = null;
 
 function todayStr() { return new Date().toISOString().slice(0, 10); }
 
 function setMemoToday() {
   _memoDate = todayStr();
   document.getElementById('memoDatePicker').value = _memoDate;
-  loadMemo(_memoDate);
+  loadMemoEntries(_memoDate);
 }
 
 async function onMemoDayChange() {
   _memoDate = document.getElementById('memoDatePicker').value;
-  if (_memoDate) await loadMemo(_memoDate);
+  if (_memoDate) await loadMemoEntries(_memoDate);
 }
 
-async function loadMemo(date) {
-  document.getElementById('memoTextarea').value = '';
-  const { data } = await _sb.from('memos').select('content').eq('memo_date', date).maybeSingle();
-  document.getElementById('memoTextarea').value = data?.content ?? '';
+async function loadMemoEntries(date) {
+  const list = document.getElementById('memoEntryList');
+  list.innerHTML = '';
+  const { data } = await _sb.from('memo_entries')
+    .select('*').eq('memo_date', date).order('created_at', { ascending: true });
+  const entries = data || [];
+  if (entries.length === 0) {
+    list.innerHTML = '<div class="empty-msg" style="padding:12px 0">この日のメモはまだありません</div>';
+    return;
+  }
+  list.innerHTML = entries.map(e => `
+    <div class="memo-entry-item">
+      <span class="memo-entry-star">${e.is_important ? '★' : ''}</span>
+      <div class="memo-entry-content">${escHtml(e.content)}</div>
+      <div class="memo-entry-actions">
+        <button class="icon-btn" onclick="openMemoEntryModal('${e.id}')" title="編集">✏️</button>
+        <button class="icon-btn danger" onclick="deleteMemoEntry('${e.id}')" title="削除">🗑️</button>
+      </div>
+    </div>`).join('');
 }
 
-async function saveMemo() {
-  const content = document.getElementById('memoTextarea').value;
+async function addMemoEntry() {
+  const content = document.getElementById('memoAddInput').value.trim();
+  if (!content) { document.getElementById('memoAddInput').focus(); return; }
   if (!_memoDate) { alert('日付を選択してください'); return; }
+  const isImportant = document.getElementById('memoAddImportant').checked;
   const now = new Date().toISOString();
-  const { error } = await _sb.from('memos').upsert(
-    { memo_date: _memoDate, content, updated_at: now },
-    { onConflict: 'memo_date' }
-  );
-  if (error) { alert('保存失敗: ' + error.message); return; }
-  const btn = document.getElementById('memoSaveBtn');
-  btn.textContent = '✓ 保存しました';
-  setTimeout(() => { btn.textContent = '保存する'; }, 1500);
+  const { error } = await _sb.from('memo_entries').insert({
+    memo_date: _memoDate, content, is_important: isImportant, created_at: now, updated_at: now
+  });
+  if (error) { alert('追加失敗: ' + error.message); return; }
+  document.getElementById('memoAddInput').value = '';
+  document.getElementById('memoAddImportant').checked = false;
+  await loadMemoEntries(_memoDate);
+  if (isImportant) loadAnn(true);
 }
+
+document.getElementById('memoAddInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') addMemoEntry();
+});
+
+function openMemoEntryModal(id) {
+  _editMemoEntryId = id;
+  document.getElementById('memoEntryMsg').textContent = '';
+  document.getElementById('memoEntryMsg').className = 'modal-msg';
+  _sb.from('memo_entries').select('*').eq('id', id).single().then(({ data }) => {
+    if (data) {
+      document.getElementById('memoEntryContent').value = data.content;
+      document.getElementById('memoEntryImportant').checked = data.is_important;
+    }
+  });
+  document.getElementById('memoEntryModalOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('memoEntryContent').focus(), 50);
+}
+
+function closeMemoEntryModal() {
+  document.getElementById('memoEntryModalOverlay').classList.remove('open');
+  _editMemoEntryId = null;
+}
+
+async function saveMemoEntry() {
+  const content = document.getElementById('memoEntryContent').value.trim();
+  const isImportant = document.getElementById('memoEntryImportant').checked;
+  const msgEl = document.getElementById('memoEntryMsg');
+  if (!content) { msgEl.textContent = '内容を入力してください'; msgEl.className = 'modal-msg error'; return; }
+  msgEl.textContent = '保存中...'; msgEl.className = 'modal-msg';
+  const { error } = await _sb.from('memo_entries')
+    .update({ content, is_important: isImportant, updated_at: new Date().toISOString() })
+    .eq('id', _editMemoEntryId);
+  if (error) { msgEl.textContent = '保存失敗: ' + error.message; msgEl.className = 'modal-msg error'; return; }
+  closeMemoEntryModal();
+  await loadMemoEntries(_memoDate);
+  loadAnn(true);
+}
+
+async function deleteMemoEntry(id) {
+  if (!confirm('このメモ項目を削除しますか？')) return;
+  const { error } = await _sb.from('memo_entries').delete().eq('id', id);
+  if (error) { alert('削除失敗: ' + error.message); return; }
+  await loadMemoEntries(_memoDate);
+  loadAnn(true);
+}
+
+document.getElementById('memoEntryModalOverlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeMemoEntryModal();
+});
 
 async function searchMemos() {
   const fromDate = document.getElementById('memoFrom').value;
@@ -885,29 +1037,29 @@ async function searchMemos() {
   const kw       = document.getElementById('memoKeyword').value.trim();
   const wrap     = document.getElementById('memoResults');
 
-  let q = _sb.from('memos').select('memo_date,content').order('memo_date', { ascending: false }).limit(50);
+  let q = _sb.from('memo_entries').select('memo_date,content,is_important')
+    .order('memo_date', { ascending: false }).order('created_at', { ascending: true }).limit(50);
   if (fromDate) q = q.gte('memo_date', fromDate);
   if (toDate)   q = q.lte('memo_date', toDate);
   if (kw)       q = q.ilike('content', `%${kw}%`);
 
   const { data, error } = await q;
   if (error) { alert('検索失敗: ' + error.message); return; }
-
   if (!data || data.length === 0) {
     wrap.innerHTML = '<div class="empty-msg" style="padding:12px 0">該当するメモが見つかりませんでした</div>';
     return;
   }
   wrap.innerHTML = data.map(r => `
-    <div class="memo-result-item" onclick="jumpToMemo('${r.memo_date}')">
+    <div class="memo-result-item" onclick="jumpToMemoDate('${r.memo_date}')">
       <div class="memo-result-date">${fmtDate(r.memo_date)}</div>
-      <div class="memo-result-preview">${escHtml(r.content)}</div>
+      <div class="memo-result-preview">${r.is_important ? '★ ' : ''}${escHtml(r.content)}</div>
     </div>`).join('');
 }
 
-function jumpToMemo(date) {
+function jumpToMemoDate(date) {
   _memoDate = date;
   document.getElementById('memoDatePicker').value = date;
-  loadMemo(date);
+  loadMemoEntries(date);
   document.getElementById('memoDatePicker').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
@@ -929,7 +1081,7 @@ async function loadApp() {
   const today = todayStr();
   _memoDate = today;
   document.getElementById('memoDatePicker').value = today;
-  await loadMemo(today);
+  await loadMemoEntries(today);
 }
 
 function init() {
