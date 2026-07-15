@@ -489,6 +489,12 @@
         <button class="edit-btn" onclick="openMetricModal('dropouts')">編集</button>
       </div>
       <div class="metric-card">
+        <div class="metric-label">新規入塾数</div>
+        <div class="metric-value" id="val-new_enrollments"><div class="skeleton"></div></div>
+        <div class="metric-updated" id="upd-new_enrollments"></div>
+        <button class="edit-btn" onclick="openMetricModal('new_enrollments')">編集</button>
+      </div>
+      <div class="metric-card">
         <div class="metric-label">生徒数目標</div>
         <div class="metric-value" id="val-target"><div class="skeleton"></div></div>
         <div class="metric-updated" id="upd-target"></div>
@@ -702,9 +708,10 @@ document.getElementById('loginInput').addEventListener('keydown', e => {
 
 // ── Metrics ────────────────────────────────────────────────────────
 const METRICS = [
-  { id: 'current_students', label: '現在の生徒数' },
-  { id: 'dropouts',         label: '退塾数'       },
-  { id: 'target',           label: '生徒数目標'   },
+  { id: 'current_students',  label: '現在の生徒数' },
+  { id: 'dropouts',          label: '退塾数'       },
+  { id: 'new_enrollments',   label: '新規入塾数'   },
+  { id: 'target',            label: '生徒数目標'   },
 ];
 let _metricsData = {};
 let _editMetricId = null;
