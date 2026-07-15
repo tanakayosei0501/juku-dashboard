@@ -298,8 +298,8 @@
     }
 
     /* Link cards */
-    .link-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    @media (max-width: 500px) { .link-cards { grid-template-columns: 1fr; } }
+    .link-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    @media (max-width: 600px) { .link-cards { grid-template-columns: 1fr 1fr; } }
     .link-card {
       background: var(--white); border-radius: var(--radius);
       box-shadow: var(--shadow); padding: 20px 18px;
@@ -545,6 +545,24 @@
         <div class="link-card-icon">📨</div>
         <div class="link-card-title">保護者連絡管理アプリ</div>
         <div class="link-card-desc">保護者へのレポート・連絡を管理</div>
+        <div class="link-card-arrow">開く →</div>
+      </a>
+      <a class="link-card" href="https://juku-distribution-app.vercel.app/" target="_blank" rel="noopener">
+        <div class="link-card-icon">📦</div>
+        <div class="link-card-title">配布物管理アプリ</div>
+        <div class="link-card-desc">プリント・教材の配布状況を管理</div>
+        <div class="link-card-arrow">開く →</div>
+      </a>
+      <a class="link-card" href="https://www.eimei-system.app/" target="_blank" rel="noopener">
+        <div class="link-card-icon">🏫</div>
+        <div class="link-card-title">EIMEIシステム</div>
+        <div class="link-card-desc">EIMEI 本部管理システム</div>
+        <div class="link-card-arrow">開く →</div>
+      </a>
+      <a class="link-card" href="https://eimei-campus-report.vercel.app/" target="_blank" rel="noopener">
+        <div class="link-card-icon">📝</div>
+        <div class="link-card-title">EIMEI報告作成アプリ</div>
+        <div class="link-card-desc">校舎報告書の作成・提出を管理</div>
         <div class="link-card-arrow">開く →</div>
       </a>
     </div>
