@@ -217,6 +217,30 @@
 
     .ann-content { font-size: 0.875rem; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
 
+    /* Announcement reads */
+    .ann-reads {
+      margin-top: 10px; padding-top: 10px;
+      border-top: 1px solid var(--gray-100);
+      display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    }
+    .ann-reads-names { font-size: 0.72rem; color: var(--success); flex: 1; min-width: 0; }
+    .ann-read-action { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+    .read-select {
+      font-size: 0.78rem; border: 1px solid var(--gray-200); border-radius: 6px;
+      padding: 5px 8px; background: var(--white); color: var(--gray-800);
+      outline: none; cursor: pointer; max-width: 130px;
+    }
+    .read-select:focus { border-color: var(--primary); }
+
+    /* Teacher management */
+    .teacher-list { padding: 0 18px; min-height: 10px; }
+    .teacher-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 0; border-bottom: 1px solid var(--gray-100);
+    }
+    .teacher-item:last-child { border-bottom: none; }
+    .teacher-name { flex: 1; font-size: 0.875rem; }
+
     .load-more-wrap { padding: 12px 18px; text-align: center; }
     .load-more-btn {
       background: var(--gray-100); border: none; border-radius: 8px;
@@ -614,6 +638,25 @@
     </div>
   </section>
 
+  <!-- Teacher Management -->
+  <section>
+    <div class="section-title">先生管理</div>
+    <div class="card-section">
+      <div class="card-section-header">
+        <span class="card-section-title">👩‍🏫 先生一覧</span>
+      </div>
+      <div class="teacher-list" id="teacherList">
+        <div class="empty-msg">先生が登録されていません</div>
+      </div>
+      <div class="memo-add-form">
+        <div class="memo-add-row">
+          <input class="memo-add-input" id="teacherNameInput" type="text" placeholder="先生の名前を追加..." />
+          <button class="btn btn-primary btn-sm" onclick="addTeacher()">追加</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
 </div><!-- .main -->
 
 <!-- Update toast -->
@@ -821,6 +864,8 @@ function checkAlert() {
 const ANN_PAGE = 10;
 let _annOffset = 0, _annCat = 'all', _annKw = '', _annHasMore = false;
 let _annTimer = null, _editAnnId = null, _annAllRows = [];
+let _annReads = {}; // { announcement_id: [teacher_name, ...] }
+let _teachers = [];
 
 const CAT_CLASS = { '事務連絡':'cat-badge-jimu','生徒対応':'cat-badge-seito','保護者対応':'cat-badge-hogo','その他':'cat-badge-other' };
 
@@ -849,6 +894,20 @@ async function loadAnn(reset = false) {
       if (kw) q = q.ilike('content', `%${kw}%`);
       const { data } = await q;
       _annAllRows = (data || []).map(r => ({ ...r, _type: 'ann' }));
+    }
+  }
+
+  // Fetch reads for all announcement-type rows
+  if (reset) {
+    const annIds = _annAllRows.filter(r => r._type === 'ann').map(r => r.id);
+    _annReads = {};
+    if (annIds.length) {
+      const { data: reads } = await _sb.from('announcement_reads')
+        .select('announcement_id,teacher_name').in('announcement_id', annIds);
+      (reads || []).forEach(r => {
+        if (!_annReads[r.announcement_id]) _annReads[r.announcement_id] = [];
+        _annReads[r.announcement_id].push(r.teacher_name);
+      });
     }
   }
 
@@ -881,6 +940,14 @@ function renderAnnRows(rows) {
         </div>
         <div class="ann-content">★ ${escHtml(row.content)}</div>`;
     } else {
+      const reads = _annReads[row.id] || [];
+      const readsText = reads.length ? '✓ 既読: ' + reads.map(escHtml).join('、') : '';
+      const saved = localStorage.getItem('selected_teacher') || '';
+      const opts = _teachers.length === 0
+        ? '<option value="">（先生を登録してください）</option>'
+        : '<option value="">先生を選ぶ</option>' + _teachers.map(t =>
+            `<option value="${escHtml(t.name)}"${t.name === saved ? ' selected' : ''}>${escHtml(t.name)}</option>`
+          ).join('');
       div.innerHTML = `
         <div class="ann-card-top">
           <span class="cat-badge ${CAT_CLASS[row.category] || 'cat-badge-other'}">${escHtml(row.category)}</span>
@@ -890,7 +957,14 @@ function renderAnnRows(rows) {
             <button class="icon-btn danger" onclick="deleteAnn('${row.id}')" title="削除">🗑️</button>
           </div>
         </div>
-        <div class="ann-content">${escHtml(row.content)}</div>`;
+        <div class="ann-content">${escHtml(row.content)}</div>
+        <div class="ann-reads">
+          <span class="ann-reads-names" id="reads-list-${row.id}">${readsText}</span>
+          <div class="ann-read-action">
+            <select class="read-select" id="read-sel-${row.id}">${opts}</select>
+            <button class="btn btn-sm btn-secondary" onclick="markRead('${row.id}')">既読にする</button>
+          </div>
+        </div>`;
     }
     list.appendChild(div);
   });
@@ -951,6 +1025,62 @@ async function deleteAnn(id) {
 }
 
 document.getElementById('annModalOverlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeAnnModal(); });
+
+async function markRead(annId) {
+  const sel = document.getElementById('read-sel-' + annId);
+  const teacherName = sel?.value;
+  if (!teacherName) { sel?.focus(); return; }
+  localStorage.setItem('selected_teacher', teacherName);
+  await _sb.from('announcement_reads').upsert(
+    { announcement_id: annId, teacher_name: teacherName },
+    { onConflict: 'announcement_id,teacher_name', ignoreDuplicates: true }
+  );
+  if (!_annReads[annId]) _annReads[annId] = [];
+  if (!_annReads[annId].includes(teacherName)) _annReads[annId].push(teacherName);
+  const el = document.getElementById('reads-list-' + annId);
+  if (el) el.textContent = '✓ 既読: ' + _annReads[annId].map(escHtml).join('、');
+}
+
+// ── Teachers ───────────────────────────────────────────────────────
+async function loadTeachers() {
+  const { data } = await _sb.from('teachers').select('*').order('created_at', { ascending: true });
+  _teachers = data || [];
+  renderTeachers();
+}
+
+function renderTeachers() {
+  const list = document.getElementById('teacherList');
+  if (_teachers.length === 0) {
+    list.innerHTML = '<div class="empty-msg">先生が登録されていません</div>';
+    return;
+  }
+  list.innerHTML = _teachers.map(t => `
+    <div class="teacher-item">
+      <span class="teacher-name">${escHtml(t.name)}</span>
+      <button class="icon-btn danger" onclick="deleteTeacher('${t.id}', '${escHtml(t.name)}')" title="削除">🗑️</button>
+    </div>`).join('');
+}
+
+async function addTeacher() {
+  const input = document.getElementById('teacherNameInput');
+  const name = input.value.trim();
+  if (!name) { input.focus(); return; }
+  const { error } = await _sb.from('teachers').insert({ name });
+  if (error) { alert('追加失敗: ' + error.message); return; }
+  input.value = '';
+  await loadTeachers();
+}
+
+document.getElementById('teacherNameInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') addTeacher();
+});
+
+async function deleteTeacher(id, name) {
+  if (!confirm(`「${name}」を削除しますか？`)) return;
+  const { error } = await _sb.from('teachers').delete().eq('id', id);
+  if (error) { alert('削除失敗: ' + error.message); return; }
+  await loadTeachers();
+}
 
 // ── Memos ──────────────────────────────────────────────────────────
 let _memoDate = '';
@@ -1102,7 +1232,7 @@ function escHtml(s) {
 // ── Init ───────────────────────────────────────────────────────────
 async function loadApp() {
   initSupabase();
-  await Promise.all([loadMetrics(), loadAnn(true)]);
+  await Promise.all([loadMetrics(), loadAnn(true), loadTeachers()]);
   const today = todayStr();
   _memoDate = today;
   document.getElementById('memoDatePicker').value = today;
