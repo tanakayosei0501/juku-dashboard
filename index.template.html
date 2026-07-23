@@ -532,8 +532,11 @@
     <div class="section-title">お知らせ</div>
     <div class="card-section">
       <div class="card-section-header">
-        <span class="card-section-title">📢 お知らせ一覧</span>
-        <button class="btn btn-primary btn-sm" onclick="openAnnModal(null)">＋ 投稿</button>
+        <span class="card-section-title" id="annSectionTitle">📢 お知らせ一覧</span>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-secondary btn-sm" id="archiveToggleBtn" onclick="toggleArchive()">📦 アーカイブ</button>
+          <button class="btn btn-primary btn-sm" id="annPostBtn" onclick="openAnnModal(null)">＋ 投稿</button>
+        </div>
       </div>
       <div class="category-tabs">
         <button class="cat-tab active" onclick="setAnnCat('all', this)">全て</button>
@@ -866,6 +869,7 @@ let _annOffset = 0, _annCat = 'all', _annKw = '', _annHasMore = false;
 let _annTimer = null, _editAnnId = null, _annAllRows = [];
 let _annReads = {}; // { announcement_id: [teacher_name, ...] }
 let _teachers = [];
+let _showArchived = false;
 
 const CAT_CLASS = { '事務連絡':'cat-badge-jimu','生徒対応':'cat-badge-seito','保護者対応':'cat-badge-hogo','その他':'cat-badge-other' };
 
@@ -877,19 +881,30 @@ async function loadAnn(reset = false) {
 
     const kw = _annKw.trim();
     if (_annCat === 'all') {
-      // Merge announcements + important memo_entries, sort by date desc
-      let annQ = _sb.from('announcements').select('*').order('created_at', { ascending: false }).limit(200);
-      if (kw) annQ = annQ.ilike('content', `%${kw}%`);
-      let memoQ = _sb.from('memo_entries').select('*').eq('is_important', true)
+      let annQ = _sb.from('announcements').select('*')
+        .eq('is_archived', _showArchived)
         .order('created_at', { ascending: false }).limit(200);
-      if (kw) memoQ = memoQ.ilike('content', `%${kw}%`);
+      if (kw) annQ = annQ.ilike('content', `%${kw}%`);
 
-      const [annRes, memoRes] = await Promise.all([annQ, memoQ]);
-      const anns  = (annRes.data  || []).map(r => ({ ...r, _type: 'ann' }));
-      const memos = (memoRes.data || []).map(r => ({ ...r, _type: 'memo' }));
-      _annAllRows = [...anns, ...memos].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      if (_showArchived) {
+        // アーカイブ表示: お知らせのみ（メモは対象外）
+        const { data } = await annQ;
+        _annAllRows = (data || []).map(r => ({ ...r, _type: 'ann' }));
+      } else {
+        // 通常表示: お知らせ + 重要メモをマージ
+        let memoQ = _sb.from('memo_entries').select('*').eq('is_important', true)
+          .order('created_at', { ascending: false }).limit(200);
+        if (kw) memoQ = memoQ.ilike('content', `%${kw}%`);
+
+        const [annRes, memoRes] = await Promise.all([annQ, memoQ]);
+        const anns  = (annRes.data  || []).map(r => ({ ...r, _type: 'ann' }));
+        const memos = (memoRes.data || []).map(r => ({ ...r, _type: 'memo' }));
+        _annAllRows = [...anns, ...memos].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      }
     } else {
-      let q = _sb.from('announcements').select('*').eq('category', _annCat)
+      let q = _sb.from('announcements').select('*')
+        .eq('category', _annCat)
+        .eq('is_archived', _showArchived)
         .order('created_at', { ascending: false }).limit(200);
       if (kw) q = q.ilike('content', `%${kw}%`);
       const { data } = await q;
@@ -915,7 +930,7 @@ async function loadAnn(reset = false) {
   const page = _annAllRows.slice(_annOffset, _annOffset + ANN_PAGE);
 
   if (_annOffset === 0 && page.length === 0) {
-    list.innerHTML = '<div class="empty-msg">お知らせはありません</div>';
+    list.innerHTML = `<div class="empty-msg">${_showArchived ? 'アーカイブされたお知らせはありません' : 'お知らせはありません'}</div>`;
   } else {
     renderAnnRows(page);
   }
@@ -1026,6 +1041,14 @@ async function deleteAnn(id) {
 
 document.getElementById('annModalOverlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeAnnModal(); });
 
+function toggleArchive() {
+  _showArchived = !_showArchived;
+  document.getElementById('archiveToggleBtn').textContent = _showArchived ? '← 一覧に戻る' : '📦 アーカイブ';
+  document.getElementById('annPostBtn').style.display = _showArchived ? 'none' : '';
+  document.getElementById('annSectionTitle').textContent = _showArchived ? '📦 アーカイブ済み' : '📢 お知らせ一覧';
+  loadAnn(true);
+}
+
 async function markRead(annId) {
   const sel = document.getElementById('read-sel-' + annId);
   const teacherName = sel?.value;
@@ -1039,6 +1062,18 @@ async function markRead(annId) {
   if (!_annReads[annId].includes(teacherName)) _annReads[annId].push(teacherName);
   const el = document.getElementById('reads-list-' + annId);
   if (el) el.textContent = '✓ 既読: ' + _annReads[annId].map(escHtml).join('、');
+
+  // 全先生が既読ならアーカイブ
+  if (_teachers.length > 0) {
+    const { data: readsData } = await _sb.from('announcement_reads')
+      .select('teacher_name').eq('announcement_id', annId);
+    const readerSet = new Set((readsData || []).map(r => r.teacher_name));
+    if (_teachers.every(t => readerSet.has(t.name))) {
+      const { error } = await _sb.from('announcements')
+        .update({ is_archived: true }).eq('id', annId);
+      if (!error) loadAnn(true);
+    }
+  }
 }
 
 // ── Teachers ───────────────────────────────────────────────────────
