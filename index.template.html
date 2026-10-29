@@ -2,7 +2,8 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#4f46e5" />
   <title>鶴瀬東専用ダッシュボード</title>
   <link rel="manifest" href="manifest.json" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -442,6 +443,49 @@
       margin-top: 8px;
     }
 
+    /* Goal summary */
+    .goal-card {
+      background: var(--white); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 16px 18px; margin-top: 12px;
+    }
+    .goal-top { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 4px; font-size: 0.82rem; color: var(--gray-600); }
+    .goal-rate { font-size: 1.3rem; font-weight: 700; color: var(--primary); }
+    .goal-bar { height: 8px; background: var(--gray-100); border-radius: 99px; overflow: hidden; margin: 10px 0 8px; }
+    .goal-bar-fill { height: 100%; background: var(--primary); border-radius: 99px; transition: width .4s; }
+    .goal-bar-fill.done { background: var(--success); }
+    .goal-note { font-size: 0.78rem; color: var(--gray-600); }
+
+    /* Unread highlight */
+    .ann-card.unread { border-left: 3px solid var(--primary); padding-left: 10px; background: #f8f8ff; }
+    .unread-names { font-size: 0.72rem; color: var(--warning); width: 100%; }
+
+    /* Dismissable states */
+    .load-error {
+      background: var(--warning-light); color: var(--warning); border-radius: var(--radius);
+      padding: 12px 16px; font-size: 0.85rem; display: none;
+    }
+    .load-error.show { display: block; }
+
+    /* Memo day navigation */
+    .day-nav-btn {
+      flex-shrink: 0; background: var(--gray-100); border: none; border-radius: 8px;
+      padding: 7px 11px; font-size: 0.85rem; color: var(--gray-600); cursor: pointer;
+    }
+    .day-nav-btn:hover { background: var(--gray-200); }
+
+    /* Mobile: avoid iOS zoom on focus, wrap crowded rows, safe areas */
+    header { padding-top: max(16px, env(safe-area-inset-top)); }
+    .main { padding-bottom: max(64px, env(safe-area-inset-bottom)); }
+    @media (max-width: 600px) {
+      input, select, textarea { font-size: 16px !important; }
+      .memo-add-row { flex-wrap: wrap; }
+      .memo-add-input { flex-basis: 100%; }
+      .ann-read-action { width: 100%; }
+      .ann-read-action .read-select { flex: 1; max-width: none; }
+      .icon-btn { padding: 8px 10px; }
+    }
+    :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
     /* Update toast */
     .update-toast {
       position: fixed;
@@ -493,8 +537,9 @@
   <!-- Alert -->
   <div class="alert-banner hidden" id="alertBanner">
     <span class="alert-icon">⚠️</span>
-    <span>今週分のデータが未更新です。各指標を確認して更新してください。</span>
+    <span id="alertText">今週分のデータが未更新です。各指標を確認して更新してください。</span>
   </div>
+  <div class="load-error" id="loadError">⚠️ データを読み込めませんでした。通信状況を確認して、ページを再読み込みしてください。</div>
 
   <!-- Metrics -->
   <section>
@@ -524,6 +569,14 @@
         <div class="metric-updated" id="upd-target"></div>
         <button class="edit-btn" onclick="openMetricModal('target')">編集</button>
       </div>
+    </div>
+    <div class="goal-card" id="goalCard" style="display:none">
+      <div class="goal-top">
+        <span>目標達成率</span>
+        <span class="goal-rate" id="goalRate">0%</span>
+      </div>
+      <div class="goal-bar"><div class="goal-bar-fill" id="goalFill" style="width:0%"></div></div>
+      <div class="goal-note" id="goalNote"></div>
     </div>
   </section>
 
@@ -605,7 +658,9 @@
       <div class="memo-body">
         <div class="date-row">
           <label>日付</label>
+          <button class="day-nav-btn" onclick="shiftMemoDay(-1)" aria-label="前の日">◀</button>
           <input type="date" id="memoDatePicker" onchange="onMemoDayChange()" />
+          <button class="day-nav-btn" onclick="shiftMemoDay(1)" aria-label="次の日">▶</button>
           <button class="today-btn" onclick="setMemoToday()">今日</button>
         </div>
         <div class="memo-entry-list" id="memoEntryList">
@@ -661,6 +716,9 @@
   </section>
 
 </div><!-- .main -->
+
+<!-- Message toast -->
+<div class="update-toast" id="msgToast" role="status" style="bottom:80px;background:var(--primary)"></div>
 
 <!-- Update toast -->
 <div class="update-toast" id="updateToast" onclick="applyUpdate()">
@@ -726,7 +784,25 @@ const DEFAULT_URL = 'https://xgisflbaomyplxoiwhda.supabase.co';
 const DEFAULT_KEY = 'sb_publishable_-VyLSUzuHwOQ4mvt0_Z4_g_efv-PMAu';
 let _sb = null;
 
+function showLoadError() { document.getElementById('loadError').classList.add('show'); }
+
+let _toastTimer = null;
+function showToast(msg) {
+  const el = document.getElementById('msgToast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+// Escape で開いているモーダルを閉じる
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  closeMetricModal(); closeAnnModal(); closeMemoEntryModal();
+});
+
 function initSupabase() {
+  if (!window.supabase) { showLoadError(); throw new Error('supabase-js not loaded'); }
   try {
     const cfg = JSON.parse(localStorage.getItem('juku_dashboard_config'));
     _sb = window.supabase.createClient(cfg.url, cfg.key);
@@ -738,7 +814,17 @@ function initSupabase() {
 // ── Password / Login ───────────────────────────────────────────────
 const PW_HASH = '__PASSWORD_HASH__';
 
-function isAuthed() { return sessionStorage.getItem('dashboard_authed') === '1'; }
+// 一度ログインしたら7日間は再入力不要（毎回の入力の手間を減らす）
+const AUTH_DAYS = 7;
+function isAuthed() {
+  try {
+    const exp = Number(localStorage.getItem('dashboard_authed_until'));
+    return exp > Date.now();
+  } catch { return false; }
+}
+function setAuthed() {
+  try { localStorage.setItem('dashboard_authed_until', String(Date.now() + AUTH_DAYS * 86400000)); } catch {}
+}
 
 async function sha256hex(str) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
@@ -757,7 +843,7 @@ async function submitLogin() {
   const input = document.getElementById('loginInput').value;
   const hash = await sha256hex(input);
   if (hash === PW_HASH) {
-    sessionStorage.setItem('dashboard_authed', '1');
+    setAuthed();
     showApp();
     loadApp();
   } else {
@@ -782,7 +868,7 @@ let _editMetricId = null;
 
 async function loadMetrics() {
   const { data } = await _sb.from('metrics').select('id,value,updated_at');
-  if (!data) return;
+  if (!data) { showLoadError(); return; }
   const existing = new Set(data.map(r => r.id));
   const inserts = METRICS.filter(m => !existing.has(m.id)).map(m => ({ id: m.id, value: 0 }));
   if (inserts.length) {
@@ -804,6 +890,25 @@ function renderMetrics() {
     document.getElementById('upd-' + id).textContent =
       rec?.updated_at ? '最終更新: ' + fmtDT(rec.updated_at) : '';
   });
+  renderGoal();
+}
+
+function renderGoal() {
+  const cur = _metricsData.current_students?.value ?? 0;
+  const target = _metricsData.target?.value ?? 0;
+  const card = document.getElementById('goalCard');
+  if (!target) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  const rate = Math.round(cur / target * 100);
+  const fill = document.getElementById('goalFill');
+  fill.style.width = Math.min(rate, 100) + '%';
+  fill.classList.toggle('done', cur >= target);
+  document.getElementById('goalRate').textContent = rate + '%';
+  const net = (_metricsData.new_enrollments?.value ?? 0) - (_metricsData.dropouts?.value ?? 0);
+  const netText = `新規 − 退塾 の差し引き: ${net > 0 ? '+' : ''}${net}人`;
+  document.getElementById('goalNote').textContent = cur >= target
+    ? `🎉 目標を達成しています（${cur - target}人超過）　${netText}`
+    : `目標まであと ${target - cur}人　${netText}`;
 }
 
 function openMetricModal(id) {
@@ -856,11 +961,15 @@ function getLastTuesday() {
 
 function checkAlert() {
   const lastTue = getLastTuesday();
-  const needs = METRICS.some(m => {
+  const stale = METRICS.filter(m => {
     const rec = _metricsData[m.id];
     return !rec?.updated_at || new Date(rec.updated_at) < lastTue;
   });
-  document.getElementById('alertBanner').classList.toggle('hidden', !needs);
+  if (stale.length) {
+    document.getElementById('alertText').textContent =
+      `今週分が未更新です：${stale.map(m => m.label).join('、')}（各カードの「編集」から更新できます）`;
+  }
+  document.getElementById('alertBanner').classList.toggle('hidden', stale.length === 0);
 }
 
 // ── Announcements ──────────────────────────────────────────────────
@@ -955,34 +1064,49 @@ function renderAnnRows(rows) {
         </div>
         <div class="ann-content">★ ${escHtml(row.content)}</div>`;
     } else {
-      const reads = _annReads[row.id] || [];
-      const readsText = reads.length ? '✓ 既読: ' + reads.map(escHtml).join('、') : '';
+      const readsText = '';
       const saved = localStorage.getItem('selected_teacher') || '';
       const opts = _teachers.length === 0
         ? '<option value="">（先生を登録してください）</option>'
         : '<option value="">先生を選ぶ</option>' + _teachers.map(t =>
             `<option value="${escHtml(t.name)}"${t.name === saved ? ' selected' : ''}>${escHtml(t.name)}</option>`
           ).join('');
+      div.id = 'ann-' + row.id;
       div.innerHTML = `
         <div class="ann-card-top">
           <span class="cat-badge ${CAT_CLASS[row.category] || 'cat-badge-other'}">${escHtml(row.category)}</span>
           <span class="ann-date">${fmtDT(row.created_at)}</span>
           <div class="ann-actions">
-            <button class="icon-btn" onclick="openAnnModal('${row.id}')" title="編集">✏️</button>
-            <button class="icon-btn danger" onclick="deleteAnn('${row.id}')" title="削除">🗑️</button>
+            <button class="icon-btn" onclick="openAnnModal('${row.id}')" title="編集" aria-label="編集">✏️</button>
+            <button class="icon-btn danger" onclick="deleteAnn('${row.id}')" title="削除" aria-label="削除">🗑️</button>
           </div>
         </div>
         <div class="ann-content">${escHtml(row.content)}</div>
         <div class="ann-reads">
           <span class="ann-reads-names" id="reads-list-${row.id}">${readsText}</span>
           <div class="ann-read-action">
-            <select class="read-select" id="read-sel-${row.id}">${opts}</select>
+            <select class="read-select" id="read-sel-${row.id}" aria-label="既読にする先生">${opts}</select>
             <button class="btn btn-sm btn-secondary" onclick="markRead('${row.id}')">既読にする</button>
           </div>
+          <span class="unread-names" id="unread-list-${row.id}"></span>
         </div>`;
     }
     list.appendChild(div);
+    if (row._type !== 'memo') updateReadState(row.id);
   });
+}
+
+// 既読・未読の表示を更新（自分が未読のお知らせは左線で強調）
+function updateReadState(annId) {
+  const reads = _annReads[annId] || [];
+  const names = document.getElementById('reads-list-' + annId);
+  if (names) names.textContent = reads.length ? '✓ 既読: ' + reads.join('、') : '';
+  const unread = _teachers.map(t => t.name).filter(n => !reads.includes(n));
+  const un = document.getElementById('unread-list-' + annId);
+  if (un) un.textContent = _teachers.length && unread.length ? '未読: ' + unread.join('、') : '';
+  const me = localStorage.getItem('selected_teacher') || '';
+  const card = document.getElementById('ann-' + annId);
+  if (card) card.classList.toggle('unread', !!me && !reads.includes(me));
 }
 
 function setAnnCat(cat, el) {
@@ -1005,9 +1129,11 @@ function openAnnModal(id) {
   document.getElementById('annMsg').textContent = '';
   document.getElementById('annMsg').className = 'modal-msg';
   if (id) {
-    _sb.from('announcements').select('*').eq('id', id).single().then(({ data }) => {
-      if (data) { document.getElementById('annCatSelect').value = data.category; document.getElementById('annContent').value = data.content; }
-    });
+    const cached = _annAllRows.find(r => r.id === id);
+    if (cached) {
+      document.getElementById('annCatSelect').value = cached.category;
+      document.getElementById('annContent').value = cached.content;
+    }
   } else {
     document.getElementById('annCatSelect').value = '事務連絡';
     document.getElementById('annContent').value = '';
@@ -1035,7 +1161,7 @@ async function saveAnn() {
 async function deleteAnn(id) {
   if (!confirm('このお知らせを削除しますか？')) return;
   const { error } = await _sb.from('announcements').delete().eq('id', id);
-  if (error) { alert('削除失敗: ' + error.message); return; }
+  if (error) { showToast('削除失敗: ' + error.message); return; }
   loadAnn(true);
 }
 
@@ -1054,14 +1180,17 @@ async function markRead(annId) {
   const teacherName = sel?.value;
   if (!teacherName) { sel?.focus(); return; }
   localStorage.setItem('selected_teacher', teacherName);
-  await _sb.from('announcement_reads').upsert(
+  const { error: readErr } = await _sb.from('announcement_reads').upsert(
     { announcement_id: annId, teacher_name: teacherName },
     { onConflict: 'announcement_id,teacher_name', ignoreDuplicates: true }
   );
+  if (readErr) { showToast('既読にできませんでした: ' + readErr.message); return; }
   if (!_annReads[annId]) _annReads[annId] = [];
   if (!_annReads[annId].includes(teacherName)) _annReads[annId].push(teacherName);
-  const el = document.getElementById('reads-list-' + annId);
-  if (el) el.textContent = '✓ 既読: ' + _annReads[annId].map(escHtml).join('、');
+  // 選んだ先生を全カードの選択欄に反映し、未読強調も更新
+  document.querySelectorAll('.read-select').forEach(s => { if (!s.value) s.value = teacherName; });
+  document.querySelectorAll('.ann-card[id^="ann-"]').forEach(c => updateReadState(c.id.slice(4)));
+  showToast(`${teacherName}さんを既読にしました`);
 
   // 全先生が既読ならアーカイブ
   if (_teachers.length > 0) {
@@ -1092,7 +1221,7 @@ function renderTeachers() {
   list.innerHTML = _teachers.map(t => `
     <div class="teacher-item">
       <span class="teacher-name">${escHtml(t.name)}</span>
-      <button class="icon-btn danger" onclick="deleteTeacher('${t.id}', '${escHtml(t.name)}')" title="削除">🗑️</button>
+      <button class="icon-btn danger" onclick="deleteTeacher('${t.id}')" title="削除" aria-label="削除">🗑️</button>
     </div>`).join('');
 }
 
@@ -1100,8 +1229,9 @@ async function addTeacher() {
   const input = document.getElementById('teacherNameInput');
   const name = input.value.trim();
   if (!name) { input.focus(); return; }
+  if (_teachers.some(t => t.name === name)) { showToast('同じ名前の先生がすでに登録されています'); return; }
   const { error } = await _sb.from('teachers').insert({ name });
-  if (error) { alert('追加失敗: ' + error.message); return; }
+  if (error) { showToast('追加に失敗しました: ' + error.message); return; }
   input.value = '';
   await loadTeachers();
 }
@@ -1110,10 +1240,11 @@ document.getElementById('teacherNameInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') addTeacher();
 });
 
-async function deleteTeacher(id, name) {
+async function deleteTeacher(id) {
+  const name = _teachers.find(t => t.id === id)?.name ?? '';
   if (!confirm(`「${name}」を削除しますか？`)) return;
   const { error } = await _sb.from('teachers').delete().eq('id', id);
-  if (error) { alert('削除失敗: ' + error.message); return; }
+  if (error) { showToast('削除失敗: ' + error.message); return; }
   await loadTeachers();
 }
 
@@ -1121,7 +1252,20 @@ async function deleteTeacher(id, name) {
 let _memoDate = '';
 let _editMemoEntryId = null;
 
-function todayStr() { return new Date().toISOString().slice(0, 10); }
+// ローカル日付（toISOString はUTCのため、日本の午前9時前に前日になってしまう）
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+}
+
+function shiftMemoDay(delta) {
+  const base = _memoDate || todayStr();
+  const [y, m, d] = base.split('-').map(Number);
+  const dt = new Date(y, m - 1, d + delta);
+  _memoDate = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;
+  document.getElementById('memoDatePicker').value = _memoDate;
+  loadMemoEntries(_memoDate);
+}
 
 function setMemoToday() {
   _memoDate = todayStr();
@@ -1158,13 +1302,13 @@ async function loadMemoEntries(date) {
 async function addMemoEntry() {
   const content = document.getElementById('memoAddInput').value.trim();
   if (!content) { document.getElementById('memoAddInput').focus(); return; }
-  if (!_memoDate) { alert('日付を選択してください'); return; }
+  if (!_memoDate) { showToast('日付を選択してください'); return; }
   const isImportant = document.getElementById('memoAddImportant').checked;
   const now = new Date().toISOString();
   const { error } = await _sb.from('memo_entries').insert({
     memo_date: _memoDate, content, is_important: isImportant, created_at: now, updated_at: now
   });
-  if (error) { alert('追加失敗: ' + error.message); return; }
+  if (error) { showToast('追加失敗: ' + error.message); return; }
   document.getElementById('memoAddInput').value = '';
   document.getElementById('memoAddImportant').checked = false;
   await loadMemoEntries(_memoDate);
@@ -1212,7 +1356,7 @@ async function saveMemoEntry() {
 async function deleteMemoEntry(id) {
   if (!confirm('このメモ項目を削除しますか？')) return;
   const { error } = await _sb.from('memo_entries').delete().eq('id', id);
-  if (error) { alert('削除失敗: ' + error.message); return; }
+  if (error) { showToast('削除失敗: ' + error.message); return; }
   await loadMemoEntries(_memoDate);
   loadAnn(true);
 }
@@ -1234,7 +1378,7 @@ async function searchMemos() {
   if (kw)       q = q.ilike('content', `%${kw}%`);
 
   const { data, error } = await q;
-  if (error) { alert('検索失敗: ' + error.message); return; }
+  if (error) { showToast('検索失敗: ' + error.message); return; }
   if (!data || data.length === 0) {
     wrap.innerHTML = '<div class="empty-msg" style="padding:12px 0">該当するメモが見つかりませんでした</div>';
     return;
@@ -1266,8 +1410,10 @@ function escHtml(s) {
 
 // ── Init ───────────────────────────────────────────────────────────
 async function loadApp() {
-  initSupabase();
-  await Promise.all([loadMetrics(), loadAnn(true), loadTeachers()]);
+  try { initSupabase(); } catch { return; }
+  // 先生一覧を先に読む（お知らせの既読プルダウンに必要）
+  await loadTeachers();
+  await Promise.all([loadMetrics(), loadAnn(true)]);
   const today = todayStr();
   _memoDate = today;
   document.getElementById('memoDatePicker').value = today;
