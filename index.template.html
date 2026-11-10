@@ -469,6 +469,23 @@
       letter-spacing: .2em; margin-bottom: 12px;
     }
     .login-card .btn { width: 100%; padding: 14px; font-size: 0.9rem; }
+    .login-card .bio-login-btn { padding: 15px; font-size: 0.92rem; }
+    .login-card .bio-login-btn .i { width: 18px; height: 18px; color: var(--gold-2); }
+    .login-or {
+      display: flex; align-items: center; gap: 12px; margin: 18px 0 14px;
+      font-size: 0.66rem; color: var(--faint); letter-spacing: .2em;
+    }
+    .login-or::before, .login-or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+    .header-bio {
+      margin-left: auto; display: inline-flex; align-items: center; gap: 6px;
+      background: var(--surface); border: 1px solid var(--line); border-radius: 99px;
+      padding: 7px 14px; font-size: 0.72rem; letter-spacing: .06em; color: var(--muted);
+      cursor: pointer; font-family: inherit; transition: border-color .2s, color .2s;
+    }
+    .header-bio .i { width: 15px; height: 15px; color: var(--gold); }
+    .header-bio:hover { border-color: var(--ink); color: var(--ink); }
+    .header-bio.on { background: var(--gold-soft); border-color: #eadcbf; color: var(--gold-ink); }
+    @media (max-width: 600px) { .header-bio span { display: none; } .header-bio { padding: 8px 10px; } }
     .login-error { font-size: 0.78rem; color: var(--rose); min-height: 20px; margin-top: 10px; }
     .login-foot { margin-top: 18px; font-size: 0.62rem; color: var(--faint); letter-spacing: .2em; text-transform: uppercase; }
 
@@ -555,6 +572,7 @@
   <symbol id="i-package" viewBox="0 0 24 24"><path d="m7.5 4.3 9 5.2"/><path d="M21 8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4a2 2 0 0 0 1-1.7Z"/><path d="M3.3 7 12 12l8.7-5M12 22V12"/></symbol>
   <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol>
   <symbol id="i-notebook" viewBox="0 0 24 24"><path d="M2 6h4M2 10h4M2 14h4M2 18h4"/><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9.5 8h5M9.5 12H16M9.5 16H14"/></symbol>
+  <symbol id="i-fingerprint" viewBox="0 0 24 24"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
 </svg>
 
@@ -565,8 +583,12 @@
     <span class="eyebrow login-eyebrow">Campus Portal</span>
     <div class="login-title">鶴瀬東専用ダッシュボード</div>
     <div class="login-subtitle">校舎運営ポータル</div>
+    <div id="bioLoginWrap" style="display:none">
+      <button class="btn btn-primary bio-login-btn" onclick="bioLogin()"><svg class="i"><use href="#i-fingerprint"/></svg>生体認証でログイン</button>
+      <div class="login-or">または</div>
+    </div>
     <input type="password" id="loginInput" placeholder="パスワード" autocomplete="current-password" />
-    <button class="btn btn-primary" onclick="submitLogin()">ログイン</button>
+    <button class="btn btn-primary" id="pwLoginBtn" onclick="submitLogin()">ログイン</button>
     <div class="login-error" id="loginError"></div>
     <div class="login-foot">Eimei · Meisei Kobetsu</div>
   </div>
@@ -579,6 +601,7 @@
       <h1>鶴瀬東専用ダッシュボード</h1>
       <div class="subtitle">Tsuruse-Higashi Campus Portal</div>
     </div>
+    <button class="header-bio" id="bioSetupBtn" style="display:none" onclick="toggleBio()"></button>
   </div>
 </header>
 
@@ -919,6 +942,110 @@ async function submitLogin() {
 document.getElementById('loginInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') submitLogin();
 });
+
+// ── Biometric (WebAuthn) ───────────────────────────────────────────
+// 端末の Face ID / Touch ID / 指紋 / Windows Hello でロックを解除する。
+// サーバーがないため、端末内での本人確認をもってログイン扱いにする
+// （パスワード画面と同じく「入口の鍵」であり、データの保護は Supabase 側が担う）。
+const BIO_KEY = 'dashboard_bio_cred';
+
+function b64urlEncode(buf) {
+  return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function b64urlDecode(str) {
+  const b64 = str.replace(/-/g,'+').replace(/_/g,'/') + '==='.slice((str.length + 3) % 4);
+  return Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+}
+function randomBytes(n) { return crypto.getRandomValues(new Uint8Array(n)); }
+
+// パスワードを変更したら登録は無効になる（旧パスワード時代の登録で入れないように）
+function getBioCred() {
+  try {
+    const c = JSON.parse(localStorage.getItem(BIO_KEY));
+    return c && c.pw === PW_HASH ? c : null;
+  } catch { return null; }
+}
+
+async function bioAvailable() {
+  try {
+    return !!window.PublicKeyCredential
+      && await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+  } catch { return false; }
+}
+
+async function bioLogin() {
+  const cred = getBioCred();
+  const errEl = document.getElementById('loginError');
+  if (!cred) return;
+  errEl.textContent = '';
+  try {
+    const assertion = await navigator.credentials.get({ publicKey: {
+      challenge: randomBytes(32),
+      allowCredentials: [{ type: 'public-key', id: b64urlDecode(cred.id), transports: ['internal', 'hybrid'] }],
+      userVerification: 'required',
+      timeout: 60000,
+    }});
+    // authenticatorData の UV フラグ（本人確認済み）を確認
+    const flags = new Uint8Array(assertion.response.authenticatorData)[32];
+    if (!(flags & 0x04)) throw new Error('not verified');
+    setAuthed();
+    showApp();
+    loadApp();
+  } catch (e) {
+    errEl.textContent = e?.name === 'NotAllowedError'
+      ? '生体認証がキャンセルされました。パスワードでもログインできます'
+      : '生体認証に失敗しました。パスワードでログインしてください';
+  }
+}
+
+async function bioRegister() {
+  try {
+    const credential = await navigator.credentials.create({ publicKey: {
+      challenge: randomBytes(32),
+      rp: { name: '鶴瀬東専用ダッシュボード' },
+      user: { id: randomBytes(16), name: 'tsuruse-higashi', displayName: '鶴瀬東専用ダッシュボード' },
+      pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
+      authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'preferred' },
+      attestation: 'none',
+      timeout: 60000,
+    }});
+    localStorage.setItem(BIO_KEY, JSON.stringify({ id: b64urlEncode(credential.rawId), pw: PW_HASH }));
+    showToast('生体認証を有効にしました。次回から指紋・顔でログインできます');
+  } catch (e) {
+    if (e?.name !== 'NotAllowedError') showToast('生体認証を登録できませんでした');
+  }
+  renderBioSetup();
+}
+
+function toggleBio() {
+  if (getBioCred()) {
+    if (!confirm('この端末の生体認証ログインをオフにしますか？\n（パスワードでのログインに戻ります）')) return;
+    localStorage.removeItem(BIO_KEY);
+    showToast('生体認証をオフにしました');
+    renderBioSetup();
+  } else {
+    bioRegister();
+  }
+}
+
+async function renderBioSetup() {
+  const btn = document.getElementById('bioSetupBtn');
+  if (!await bioAvailable()) { btn.style.display = 'none'; return; }
+  const on = !!getBioCred();
+  btn.classList.toggle('on', on);
+  btn.innerHTML = ic('fingerprint') + `<span>${on ? '生体認証 オン' : '生体認証を有効にする'}</span>`;
+  btn.title = on ? 'タップで生体認証ログインをオフ' : 'Face ID・Touch ID・指紋でログインできるようにする';
+  btn.style.display = '';
+}
+
+async function initBioLogin() {
+  if (getBioCred() && await bioAvailable()) {
+    document.getElementById('bioLoginWrap').style.display = '';
+    document.getElementById('pwLoginBtn').className = 'btn btn-secondary';
+    return true;
+  }
+  return false;
+}
 
 // ── Metrics ────────────────────────────────────────────────────────
 const METRICS = [
@@ -1490,6 +1617,7 @@ function escHtml(s) {
 // ── Init ───────────────────────────────────────────────────────────
 async function loadApp() {
   renderToday();
+  renderBioSetup();
   try { initSupabase(); } catch { return; }
   // 先生一覧を先に読む（お知らせの既読プルダウンに必要）
   await loadTeachers();
@@ -1500,12 +1628,13 @@ async function loadApp() {
   await loadMemoEntries(today);
 }
 
-function init() {
+async function init() {
   if (isAuthed()) {
     showApp();
     loadApp();
   } else {
-    setTimeout(() => document.getElementById('loginInput').focus(), 50);
+    // 生体認証が使えるときは、キーボードが出ないようパスワード欄にフォーカスしない
+    if (!await initBioLogin()) setTimeout(() => document.getElementById('loginInput').focus(), 50);
   }
 }
 
